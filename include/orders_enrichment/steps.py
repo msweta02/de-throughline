@@ -64,12 +64,16 @@ def normalize(orders: Table) -> Table:
 def apply_promo(orders: Table) -> Table:
     """Attach each customer's active promotion.
 
-    The join matches on customer_id within the promotion's validity window.
-    Nearly every customer has exactly one active promotion, so for nearly every
-    order this returns exactly the row it was given. For a customer with two
-    overlapping windows it returns two, and nothing here notices: no exception,
-    no null, no schema change, and the row still passes every data-quality
-    check that is not specifically looking for a duplicate key.
+    The join matches on customer_id within the promotion's validity window. A
+    customer with two overlapping windows matches both, which used to return
+    two rows where one went in — silently, since a fanned-out row has no nulls,
+    no type errors and no schema change to give it away.
+
+    The QUALIFY keeps the single most valuable promotion per order, so the join
+    can match as many rows as it likes and this task still emits one row per
+    order. Whether the overlapping promotions should have existed in the first
+    place is a separate question, and a real one: this fixes the pipeline, not
+    the data.
     """
     # No scope placeholder here on purpose. This task reads a source table
     # (wh.promotions) but reaches it through a join to an already-scoped input,
@@ -89,6 +93,10 @@ def apply_promo(orders: Table) -> Table:
             LEFT JOIN wh.promotions p
                    ON p.customer_id = o.customer_id
                   AND o.ordered_at::DATE BETWEEN p.valid_from AND p.valid_to
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY o.order_id
+                ORDER BY p.discount_pct DESC, p.promo_id
+            ) = 1
             """
         )
     finally:
