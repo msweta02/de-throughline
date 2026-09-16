@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+    tags: ["bundle-*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The demo check replays the hero record against the bundle-v1 tag,
+          # so the tags have to come with the clone.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Tests
+        run: pytest tests/ -q
+
+      - name: Replay cannot write to production
+        # Exits non-zero unless every attempted production write was refused
+        # and the row counts are untouched. This is the claim the README makes
+        # most loudly, so CI is the right place to keep it honest.
+        run: python tools/prove_isolation.py
+
+      - name: The demo still demonstrates what it claims
+        # Every number this asserts is quoted in README.md or the demo script.
+        run: python tools/check_demo.py
+
+      - name: A traced run captures, and an untraced one does not
+        run: |
+          python tools/seed_warehouse.py
+          python tools/local_run.py --run-id ci --bundle-version ci
+          python tools/local_run.py --run-id ci-off --no-trace

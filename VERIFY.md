@@ -25,6 +25,7 @@ grid, replay isolation — has been run end to end and is covered by tests.
 | Sampling caps by record, not by row | `tests/test_passage.py` |
 | Tracing does not change what a task returns | `tests/test_passage.py` |
 | Replay refuses tasks that are not marked safe, by name | `tests/test_passage.py` |
+| The demo's own numbers are guarded | `tools/check_demo.py`, run by CI — seed condition, the fix holding on current code, and the bug reproducing against the `bundle-v1` tag |
 | All four pages render | rendered to HTML from real captures, asserting the grid and diff text |
 | A full traced run finds all 3 broken records unaided | `tools/local_run.py --sample all` over 5,000 orders, ~8s |
 | Captured values are escaped safely on the bulk-insert path | `tests/test_passage.py` — a value containing `'); DROP TABLE ...` round-trips intact and the store survives |

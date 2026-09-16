@@ -1,0 +1,7 @@
+# Everything needed to run Passage, its tests and its demo tools outside the
+# Airflow image. Inside the image, Airflow already supplies jinja2 and fastapi,
+# so requirements.txt only lists what it does not.
+duckdb
+jinja2
+pytest
+ruff

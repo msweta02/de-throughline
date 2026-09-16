@@ -332,6 +332,12 @@ end and is covered by tests; everything Airflow-facing is either copied from a
 plugin known to run on Astro Runtime 3.1-1, or listed as an open assumption with
 its fallback.
 
+CI runs the tests, the isolation proof and `tools/check_demo.py` on every push,
+across Python 3.11–3.13. That last one asserts the numbers quoted in this README
+and in the demo script — including replaying the hero record against the
+`bundle-v1` tag to confirm the bug still reproduces — so if the documentation
+drifts from the code, the build fails rather than a judge finding out on camera.
+
 Read **[VERIFY.md](VERIFY.md)** before trusting any Airflow-facing claim in this
 file. It also lists the known limitations — most importantly that **the plugin
 endpoints are not authenticated**, which is an Airflow 3.1 default this project
@@ -344,9 +350,14 @@ passage/      the plugin: decorator, capture store, grid, replay, views
 dags/         the demo DAG — a thin binding, no logic
 include/      task bodies, seed SQL, replay plans, the DuckDB databases
 plugins/      the AirflowPlugin registration
-tools/        seed, local run, isolation proof
+tools/        seed, local run, isolation proof, demo regression check
 tests/        sanity checks on the switches, row_ordinal and refusal
+docs/         the demo script the video follows
+.github/      CI: lint, tests, isolation proof, demo check
 ```
+
+Contributing notes and the invariants worth not breaking are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

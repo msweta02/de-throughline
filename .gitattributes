@@ -1,0 +1,10 @@
+# Keep line endings LF everywhere, even if the repo is opened from Windows.
+* text=auto eol=lf
+
+# Generated, and rebuildable with tools/seed_warehouse.py. Never diff these.
+*.duckdb binary
+*.duckdb.wal binary
+
+# The SQL and the templates are the interesting part of this repo, not noise.
+*.sql linguist-detectable
+*.html linguist-detectable=false
