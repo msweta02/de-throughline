@@ -15,7 +15,8 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
-from passage import errors, registry, replay as replay_mod, store, views
+from passage import errors, registry, store, views
+from passage import replay as replay_mod
 
 #: Airflow mounts the app with ``app.mount(url_prefix, subapp)``, so every route
 #: here is served beneath this prefix. The plugin's ``external_views`` href must
@@ -66,7 +67,9 @@ def records_page(dag_id: str, run_id: str) -> HTMLResponse:
     return _html(views.records(URL_PREFIX, dag_id, run_id))
 
 
-@app.get("/runs/{dag_id}/{run_id}/{record_key}", response_class=HTMLResponse, include_in_schema=False)
+@app.get(
+    "/runs/{dag_id}/{run_id}/{record_key}", response_class=HTMLResponse, include_in_schema=False
+)
 def trace_page(dag_id: str, run_id: str, record_key: str) -> HTMLResponse:
     return _html(views.trace(URL_PREFIX, dag_id, run_id, record_key))
 
@@ -88,8 +91,7 @@ def list_traces() -> JSONResponse:
 @app.get("/traces/{dag_id}/{run_id}")
 def list_trace_records(dag_id: str, run_id: str) -> JSONResponse:
     """The records captured in one run."""
-    payload = {"dag_id": dag_id, "run_id": run_id,
-               "records": store.list_records(dag_id, run_id)}
+    payload = {"dag_id": dag_id, "run_id": run_id, "records": store.list_records(dag_id, run_id)}
     return JSONResponse(json.loads(json.dumps(payload, default=str)))
 
 
@@ -103,8 +105,10 @@ def get_trace(dag_id: str, run_id: str, record_key: str) -> JSONResponse:
 @app.get("/replays")
 def get_replays() -> JSONResponse:
     return JSONResponse(
-        {"replays": json.loads(json.dumps(store.list_replays(), default=str)),
-         "replayable_dags": registry.registered()}
+        {
+            "replays": json.loads(json.dumps(store.list_replays(), default=str)),
+            "replayable_dags": registry.registered(),
+        }
     )
 
 

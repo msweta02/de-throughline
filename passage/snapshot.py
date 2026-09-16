@@ -50,7 +50,9 @@ def to_text(value: Any) -> str | None:
     return str(value)
 
 
-def _rows_from_relation(con: Any, qualified: str, key: str | None, sample: int | None) -> list[dict]:
+def _rows_from_relation(
+    con: Any, qualified: str, key: str | None, sample: int | None
+) -> list[dict]:
     """Read a warehouse relation, capped at ``sample`` distinct record keys.
 
     The cap is pushed into SQL rather than applied after fetching, so tracing a
@@ -73,7 +75,7 @@ def _rows_from_relation(con: Any, qualified: str, key: str | None, sample: int |
 
     cursor = con.execute(sql)
     columns = [d[0] for d in cursor.description]
-    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+    return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
 
 def _cap_records(rows: list[dict], key: str | None, sample: int | None) -> list[dict]:
@@ -94,7 +96,9 @@ def _cap_records(rows: list[dict], key: str | None, sample: int | None) -> list[
     return keep
 
 
-def take(value: Any, *, key: str | None = None, sample: int | None = None, con: Any = None) -> Snapshot:
+def take(
+    value: Any, *, key: str | None = None, sample: int | None = None, con: Any = None
+) -> Snapshot:
     """Snapshot one value. Never raises: capture must not break the task."""
     if value is None:
         return Snapshot(kind="none")

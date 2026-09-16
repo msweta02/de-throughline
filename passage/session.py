@@ -23,7 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import duckdb
 
 
-def connect(rt: runtime.Runtime | None = None) -> "duckdb.DuckDBPyConnection":
+def connect(rt: runtime.Runtime | None = None) -> duckdb.DuckDBPyConnection:
     """Open a connection configured for whatever mode this task is running in.
 
     Normal run: the warehouse is attached read-write and is the write target.
@@ -60,7 +60,7 @@ def write_target(rt: runtime.Runtime | None = None) -> str:
     return SCRATCH_ALIAS if rt.is_replay else WAREHOUSE_ALIAS
 
 
-def connect_observer(rt: runtime.Runtime | None = None) -> "duckdb.DuckDBPyConnection":
+def connect_observer(rt: runtime.Runtime | None = None) -> duckdb.DuckDBPyConnection:
     """The connection Passage snapshots through. Read-only on everything.
 
     Passage never writes to the warehouse, so it never asks for write access to

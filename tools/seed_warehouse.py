@@ -32,8 +32,10 @@ def main() -> int:
         print(f"warehouse: {paths.warehouse_db()}")
         print(f"  wh.orders      {orders:>6,} rows")
         print(f"  wh.promotions  {promos:>6,} rows")
-        print(f"  customers with overlapping promo windows: "
-              f"{', '.join(str(c) for c, _ in overlapping)}")
+        print(
+            f"  customers with overlapping promo windows: "
+            f"{', '.join(str(c) for c, _ in overlapping)}"
+        )
         hero = con.execute(
             "SELECT order_id, customer_id FROM wh.orders WHERE customer_id = 5000"
         ).fetchone()

@@ -92,8 +92,7 @@ def _side(cells: list[dict], task_id: str, direction: str) -> list[dict[str, str
 def build(dag_id: str, run_id: str, record_key: str) -> Trace:
     """Assemble the trace for one record in one run."""
     cells = store.captures_for(dag_id, run_id, record_key)
-    tasks = [t for t in store.task_order(dag_id, run_id)
-             if any(c["task_id"] == t for c in cells)]
+    tasks = [t for t in store.task_order(dag_id, run_id) if any(c["task_id"] == t for c in cells)]
 
     bundle_version = cells[0]["bundle_version"] if cells else "unknown"
 

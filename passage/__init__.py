@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from passage import scope
 from passage.errors import DecoratorOrderError, PassageError, ReplayRefused
+from passage.registry import register_replay
 from passage.table import Table, is_table, qualified
 from passage.tracing import trace
 
@@ -26,13 +27,9 @@ __all__ = [
     "Table",
     "is_table",
     "qualified",
+    "register_replay",
     "scope",
     "trace",
 ]
 
 __version__ = "0.1.0"
-
-# Imported late: registry and replay pull in store, which pulls in duckdb.
-from passage.registry import register_replay  # noqa: E402
-
-__all__.append("register_replay")

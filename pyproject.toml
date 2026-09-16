@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "E501",  # long lines are docstrings and SQL, both more readable unwrapped
+    "B008",  # FastAPI dependencies are called in defaults by design
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

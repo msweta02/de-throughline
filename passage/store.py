@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
-from passage import paths, runtime, snapshot as snapshot_mod
+from passage import paths, runtime
+from passage import snapshot as snapshot_mod
 
 # The capture *file* is already Passage's, so the schema inside it is named for
 # what it holds. Calling it "passage" would collide with DuckDB's catalog name
@@ -108,27 +109,80 @@ def record(
         return 0
 
     capture_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = [
-        (capture_id, rt.dag_id, rt.run_id, rt.bundle_version, rt.task_id, direction,
-         record_key, ordinal, field_name, value, now)
+        (
+            capture_id,
+            rt.dag_id,
+            rt.run_id,
+            rt.bundle_version,
+            rt.task_id,
+            direction,
+            record_key,
+            ordinal,
+            field_name,
+            value,
+            now,
+        )
         for record_key, ordinal, field_name, value in cells
     ]
 
     con = connect()
     try:
-        con.executemany(
-            f"INSERT INTO {SCHEMA}.captures VALUES (?,?,?,?,?,?,?,?,?,?,?)", payload
-        )
+        _insert(con, payload)
     finally:
         con.close()
     return len(payload)
 
 
+#: Rows per INSERT statement on the fast path.
+_CHUNK = 5000
+
+
+def _literal(value: Any) -> str:
+    """Render one value as a SQL literal, escaped.
+
+    Doubling single quotes is the complete escape for a DuckDB string literal,
+    and NUL is stripped because a varchar cannot hold one. Everything written
+    here is already text from :func:`passage.snapshot.to_text`.
+    """
+    if value is None:
+        return "NULL"
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, int):
+        return str(value)
+    return "'" + str(value).replace("\x00", "").replace("'", "''") + "'"
+
+
+def _insert(con: Any, payload: list[tuple]) -> None:
+    """Write a batch of cells.
+
+    Literals are inlined rather than bound as parameters because DuckDB binds
+    them one at a time: 45,000 cells takes 60 seconds through ``executemany``
+    and under a second this way. The capture store is Passage's own private
+    database and every value has already been stringified, but the escaping
+    above is still exact — and if it ever is not, the parameterised path below
+    runs instead, after a rollback so nothing lands twice.
+    """
+    try:
+        con.execute("BEGIN TRANSACTION")
+        for start in range(0, len(payload), _CHUNK):
+            chunk = payload[start : start + _CHUNK]
+            values = ",".join(
+                "(" + ",".join(_literal(value) for value in row) + ")" for row in chunk
+            )
+            con.execute(f"INSERT INTO {SCHEMA}.captures VALUES {values}")
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        con.executemany(f"INSERT INTO {SCHEMA}.captures VALUES (?,?,?,?,?,?,?,?,?,?,?)", payload)
+
+
 def _rows(con: Any, sql: str, params: list | None = None) -> list[dict]:
     cursor = con.execute(sql, params or [])
     columns = [d[0] for d in cursor.description]
-    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+    return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
 
 def list_traces(limit: int = 50) -> list[dict]:
@@ -173,6 +227,21 @@ def list_records(dag_id: str, run_id: str, limit: int = 200) -> list[dict]:
             LIMIT {int(limit)}
             """,
             [dag_id, run_id],
+        )
+    finally:
+        con.close()
+
+
+def count_records(dag_id: str, run_id: str) -> int:
+    """How many distinct records a run captured, ignoring any listing limit."""
+    con = connect(read_only=True)
+    try:
+        return int(
+            con.execute(
+                f"SELECT count(DISTINCT record_key) FROM {SCHEMA}.captures "
+                f"WHERE dag_id = ? AND run_id = ? AND record_key IS NOT NULL",
+                [dag_id, run_id],
+            ).fetchone()[0]
         )
     finally:
         con.close()
@@ -244,10 +313,17 @@ def save_replay(entry: dict) -> None:
         con.execute(
             f"INSERT INTO {SCHEMA}.replays VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             [
-                entry.get("replay_id"), entry.get("dag_id"), entry.get("source_run_id"),
-                entry.get("bundle_version"), entry.get("record_key"), entry.get("scope"),
-                entry.get("query"), entry.get("status"), entry.get("note"),
-                bool(entry.get("is_regression")), datetime.now(timezone.utc),
+                entry.get("replay_id"),
+                entry.get("dag_id"),
+                entry.get("source_run_id"),
+                entry.get("bundle_version"),
+                entry.get("record_key"),
+                entry.get("scope"),
+                entry.get("query"),
+                entry.get("status"),
+                entry.get("note"),
+                bool(entry.get("is_regression")),
+                datetime.now(UTC),
             ],
         )
     finally:

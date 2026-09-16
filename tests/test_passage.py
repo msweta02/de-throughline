@@ -7,7 +7,6 @@ that quietly does not happen, or a fan-out that quietly collapses to one row.
 
 from __future__ import annotations
 
-import os
 import sys
 import uuid
 from pathlib import Path
@@ -110,3 +109,23 @@ def test_replay_refuses_tasks_that_are_not_marked_safe(capture_home):
     assert replay.preflight("unsafe_dag")
     with pytest.raises(errors.ReplayRefused):
         replay.run("unsafe_dag", "order_id = 1")
+
+
+def test_hostile_values_survive_the_fast_insert_path(capture_home):
+    """Captured values are inlined as SQL literals, so escaping has to be exact."""
+    from passage import runtime, snapshot, store
+
+    hostile = "'); DROP TABLE capture.captures; --"
+    run_id = f"test__{uuid.uuid4().hex[:8]}"
+    rt = runtime.Runtime("d", run_id, "t", "v", "manual", {})
+    snap = snapshot.take(
+        [{"order_id": 1, "note": hostile, "quote": "it's", "missing": None}], key="order_id"
+    )
+    store.record(rt, "out", snap, "order_id")
+
+    cells = {c["field_name"]: c["value"] for c in store.captures_for("d", run_id, "1")}
+    assert cells["note"] == hostile
+    assert cells["quote"] == "it's"
+    assert cells["missing"] is None
+    # The store is still there, which it would not be if the literal had escaped.
+    assert store.list_traces()

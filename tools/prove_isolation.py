@@ -22,11 +22,15 @@ from passage import runtime, session  # noqa: E402
 ATTEMPTS = [
     # Column-correct on purpose: this has to fail because the database is
     # read-only, not because the statement was malformed.
-    ("INSERT into a production table",
-     "INSERT INTO wh.orders_enriched SELECT * FROM wh.orders_enriched LIMIT 1"),
+    (
+        "INSERT into a production table",
+        "INSERT INTO wh.orders_enriched SELECT * FROM wh.orders_enriched LIMIT 1",
+    ),
     ("CREATE a new production table", "CREATE TABLE wh.sneaky AS SELECT 1 AS x"),
-    ("CREATE OR REPLACE a production table",
-     "CREATE OR REPLACE TABLE wh.orders_enriched AS SELECT 1 AS x"),
+    (
+        "CREATE OR REPLACE a production table",
+        "CREATE OR REPLACE TABLE wh.orders_enriched AS SELECT 1 AS x",
+    ),
     ("DELETE from a production table", "DELETE FROM wh.orders"),
     ("UPDATE a production table", "UPDATE wh.orders SET qty = 0"),
     ("DROP a production table", "DROP TABLE wh.promotions"),

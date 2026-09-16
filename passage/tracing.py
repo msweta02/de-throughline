@@ -28,9 +28,11 @@ from __future__ import annotations
 
 import functools
 import logging
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
-from passage import config, errors, runtime, session, snapshot as snapshot_mod, store
+from passage import config, errors, runtime, session, store
+from passage import snapshot as snapshot_mod
 from passage import table as table_mod
 
 log = logging.getLogger("passage")
@@ -60,7 +62,9 @@ def _pick_input(args: tuple, kwargs: dict) -> Any:
     return None
 
 
-def _capture(rt: runtime.Runtime, direction: str, value: Any, key: str | None, sample: int | None) -> None:
+def _capture(
+    rt: runtime.Runtime, direction: str, value: Any, key: str | None, sample: int | None
+) -> None:
     """Snapshot one side and store it. Never raises."""
     try:
         con = None

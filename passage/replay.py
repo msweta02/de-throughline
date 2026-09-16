@@ -62,8 +62,9 @@ def run(
 
     problems = preflight(dag_id)
     if problems:
-        result = ReplayResult(replay_id, dag_id, scope, bundle_version,
-                              "refused", record_key, "; ".join(problems))
+        result = ReplayResult(
+            replay_id, dag_id, scope, bundle_version, "refused", record_key, "; ".join(problems)
+        )
         _save(result)
         raise errors.ReplayRefused(result.note or "replay refused")
 
@@ -75,8 +76,9 @@ def run(
             "scope": scope,
         }
     }
-    base = dict(dag_id=dag_id, run_id=replay_id, bundle_version=bundle_version,
-                run_type="manual", conf=conf)
+    base = dict(
+        dag_id=dag_id, run_id=replay_id, bundle_version=bundle_version, run_type="manual", conf=conf
+    )
 
     previous: Any = None
     ran: list[str] = []
@@ -92,8 +94,16 @@ def run(
                 previous = step.func(previous)
             ran.append(step.task_id)
     except Exception as exc:  # noqa: BLE001 - reported, not swallowed
-        result = ReplayResult(replay_id, dag_id, scope, bundle_version, "failed",
-                              record_key, f"{type(exc).__name__}: {exc}", ran)
+        result = ReplayResult(
+            replay_id,
+            dag_id,
+            scope,
+            bundle_version,
+            "failed",
+            record_key,
+            f"{type(exc).__name__}: {exc}",
+            ran,
+        )
         _save(result)
         return result
     finally:
@@ -105,8 +115,7 @@ def run(
         records = store.list_records(dag_id, replay_id, limit=1)
         record_key = str(records[0]["record_key"]) if records else None
 
-    result = ReplayResult(replay_id, dag_id, scope, bundle_version, "ok",
-                          record_key, None, ran)
+    result = ReplayResult(replay_id, dag_id, scope, bundle_version, "ok", record_key, None, ran)
     _save(result)
     return result
 

@@ -115,11 +115,17 @@ def current() -> Runtime:
     task_instance = (context or {}).get("ti")
 
     resolved = Runtime(
-        dag_id=str(getattr(task_instance, "dag_id", None) or os.environ.get("PASSAGE_DAG_ID", "unknown")),
+        dag_id=str(
+            getattr(task_instance, "dag_id", None) or os.environ.get("PASSAGE_DAG_ID", "unknown")
+        ),
         run_id=str((context or {}).get("run_id") or os.environ.get("PASSAGE_RUN_ID", "local")),
-        task_id=str(getattr(task_instance, "task_id", None) or os.environ.get("PASSAGE_TASK_ID", "unknown")),
+        task_id=str(
+            getattr(task_instance, "task_id", None) or os.environ.get("PASSAGE_TASK_ID", "unknown")
+        ),
         bundle_version=_bundle_version(context),
-        run_type=str(getattr(dag_run, "run_type", None) or os.environ.get("PASSAGE_RUN_TYPE", "manual")),
+        run_type=str(
+            getattr(dag_run, "run_type", None) or os.environ.get("PASSAGE_RUN_TYPE", "manual")
+        ),
         conf=conf,
     )
 

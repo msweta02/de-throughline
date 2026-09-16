@@ -12,8 +12,9 @@ which beats discovering callables by reflection and guessing how to chain them.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Literal
+from typing import Literal
 
 #: How a step gets its input: the scope predicate, or the previous step's handle.
 ArgKind = Literal["scope", "previous", "none"]
