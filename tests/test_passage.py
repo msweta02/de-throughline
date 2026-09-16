@@ -129,3 +129,13 @@ def test_hostile_values_survive_the_fast_insert_path(capture_home):
     assert cells["missing"] is None
     # The store is still there, which it would not be if the literal had escaped.
     assert store.list_traces()
+
+
+def test_a_malformed_sample_setting_does_not_break_the_task(monkeypatch):
+    """Capture reads config inside the task, so bad config must not raise there."""
+    from passage import config
+
+    monkeypatch.setenv("PASSAGE_SAMPLE_RECORDS", "not-a-number")
+    assert config.sample_records({}) == config.DEFAULT_SAMPLE_RECORDS
+    assert config.sample_records({"sample": "nonsense"}) == config.DEFAULT_SAMPLE_RECORDS
+    assert config.sample_records({"sample": "all"}) is None

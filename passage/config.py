@@ -85,4 +85,10 @@ def sample_records(passage_conf: dict) -> int | None:
             return max(1, int(value))
         except (TypeError, ValueError):
             pass
-    return int(os.environ.get("PASSAGE_SAMPLE_RECORDS", DEFAULT_SAMPLE_RECORDS))
+
+    # Read defensively. This runs inside the task, and a typo in an environment
+    # variable must not be able to fail somebody's pipeline.
+    try:
+        return max(1, int(os.environ.get("PASSAGE_SAMPLE_RECORDS", DEFAULT_SAMPLE_RECORDS)))
+    except (TypeError, ValueError):
+        return DEFAULT_SAMPLE_RECORDS
