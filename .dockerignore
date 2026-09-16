@@ -1,0 +1,5 @@
+.git
+.venv
+logs
+include/*.duckdb
+include/scratch

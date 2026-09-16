@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{% block title %}Passage{% endblock %}</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f7f8fa; --line: #dfe3e8; --ink: #1b1f24;
+    --muted: #6b7480; --accent: #2f6feb; --warn: #b4531a; --warn-bg: #fdf1e7;
+    --add: #1a7f4b; --add-bg: #eaf6ef; --drop: #8a2f2f; --drop-bg: #fbeded;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a; --panel: #1c2024; --line: #2c3238; --ink: #e8eaed;
+      --muted: #9aa3ad; --accent: #6b9bff; --warn: #e8a06a; --warn-bg: #33241a;
+      --add: #6cc596; --add-bg: #17291f; --drop: #e08a8a; --drop-bg: #2e1c1c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px; background: var(--bg); color: var(--ink);
+         font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  h1 { font-size: 19px; margin: 0 0 2px; }
+  h2 { font-size: 14px; margin: 26px 0 8px; color: var(--muted);
+       text-transform: uppercase; letter-spacing: .06em; }
+  .sub { color: var(--muted); margin-bottom: 18px; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  .panel { background: var(--panel); border: 1px solid var(--line);
+           border-radius: 8px; padding: 14px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line);
+           vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px;
+       text-transform: uppercase; letter-spacing: .05em; }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 999px;
+          font-size: 12px; border: 1px solid var(--line); }
+  .pill.warn { color: var(--warn); background: var(--warn-bg); border-color: var(--warn); }
+  .pill.add  { color: var(--add);  background: var(--add-bg);  border-color: var(--add); }
+  .pill.drop { color: var(--drop); background: var(--drop-bg); border-color: var(--drop); }
+  {% block style %}{% endblock %}
+</style>
+</head>
+<body>
+{% block body %}{% endblock %}
+</body>
+</html>

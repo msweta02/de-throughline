@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Passage{% endblock %}
+{% block style %}
+  form { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+  input, select { padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px;
+                  background: var(--bg); color: var(--ink); font: inherit; min-width: 210px; }
+  button { padding: 8px 15px; border-radius: 6px; border: 1px solid var(--accent);
+           background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+  .empty { color: var(--muted); padding: 14px; }
+{% endblock %}
+{% block body %}
+<h1>Passage</h1>
+<div class="sub">Follow one record through a DAG.</div>
+
+<h2>Traces</h2>
+<div class="panel" style="padding:0">
+{% if traces %}
+<table>
+  <tr><th>dag</th><th>run</th><th>bundle</th><th>tasks</th><th>records</th><th>captured</th></tr>
+  {% for t in traces %}
+  <tr>
+    <td class="mono">{{ t.dag_id }}</td>
+    <td><a class="mono" href="{{ base }}/runs/{{ t.dag_id }}/{{ t.run_id }}">{{ t.run_id }}</a></td>
+    <td><span class="pill">{{ t.bundle_version }}</span></td>
+    <td>{{ t.tasks }}</td>
+    <td>{{ t.records }}</td>
+    <td class="mono">{{ t.started_at }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="empty">
+  Nothing captured yet. Tracing is off unless asked for: set the
+  <span class="mono">passage_enabled</span> Airflow Variable, then trigger a run
+  with <span class="mono">{"passage": {"trace": true}}</span>.
+</div>
+{% endif %}
+</div>
+
+<h2>Replay a record</h2>
+<div class="panel">
+  <form method="post" action="{{ base }}/replays">
+    <div>
+      <label for="dag_id">dag</label>
+      <input id="dag_id" name="dag_id" value="orders_enrichment" required>
+    </div>
+    <div>
+      <label for="scope">scope predicate</label>
+      <input id="scope" name="scope" class="mono" placeholder="order_id = 88231" required>
+    </div>
+    <div>
+      <label for="bundle_version">bundle version</label>
+      <input id="bundle_version" name="bundle_version" value="{{ default_bundle }}">
+    </div>
+    <button type="submit">Replay</button>
+  </form>
+  <p class="sub" style="margin:12px 0 0">
+    Replay re-executes the real task code against production attached read-only,
+    writing to a scratch database. Tasks not marked
+    <span class="mono">replay_safe</span> refuse to run.
+  </p>
+</div>
+
+{% if replays %}
+<h2>Replays</h2>
+<div class="panel" style="padding:0">
+<table>
+  <tr><th>record</th><th>dag</th><th>bundle</th><th>scope</th><th>status</th><th>when</th></tr>
+  {% for r in replays %}
+  <tr>
+    <td><a class="mono" href="{{ base }}/runs/{{ r.dag_id }}/{{ r.replay_id }}/{{ r.record_key }}">{{ r.record_key }}</a></td>
+    <td class="mono">{{ r.dag_id }}</td>
+    <td><span class="pill">{{ r.bundle_version }}</span></td>
+    <td class="mono">{{ r.scope }}</td>
+    <td>{% if r.status == 'refused' %}<span class="pill warn">refused</span>{% else %}{{ r.status }}{% endif %}</td>
+    <td class="mono">{{ r.created_at }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% endif %}
+{% endblock %}

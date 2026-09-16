@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Passage — diff {{ left.record_key }}{% endblock %}
+{% block style %}
+  .side { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .counts { font-size: 20px; font-family: ui-monospace, Menlo, monospace; }
+  .counts.break { color: var(--warn); font-weight: 700; }
+  .counts.ok { color: var(--add); font-weight: 700; }
+  .card { background: var(--panel); border: 1px solid var(--line);
+          border-radius: 8px; padding: 14px; }
+  .card.break { border-color: var(--warn); }
+  .card.ok { border-color: var(--add); }
+{% endblock %}
+{% block body %}
+<h1>Record <span class="mono">{{ left.record_key }}</span> across two bundle versions</h1>
+<div class="sub"><span class="mono">{{ left.dag_id }}</span></div>
+
+<div class="side">
+  {% for t in [left, right] %}
+  <div class="card {{ 'break' if t.breaks else 'ok' }}">
+    <div><span class="pill">{{ t.bundle_version }}</span>
+         <span class="mono sub">{{ t.run_id }}</span></div>
+    <div class="counts {{ 'break' if t.breaks else 'ok' }}" style="margin:10px 0 6px">
+      {{ t.row_counts | join(' &rarr; ') | safe }}
+    </div>
+    <div class="sub" style="margin:0">
+      {% if t.breaks %}fans out at {{ t.breaks | join(', ') }}{% else %}holds at one row throughout{% endif %}
+    </div>
+    <p style="margin:12px 0 0"><a href="{{ base }}/runs/{{ t.dag_id }}/{{ t.run_id }}/{{ t.record_key }}">open the grid &rarr;</a></p>
+  </div>
+  {% endfor %}
+</div>
+
+<h2>Final values</h2>
+<div class="panel" style="padding:0; overflow-x:auto">
+<table>
+  <tr><th>field</th><th>{{ left.bundle_version }}</th><th>{{ right.bundle_version }}</th></tr>
+  {% for row in final_rows %}
+  <tr>
+    <td class="mono" style="font-weight:600">{{ row.field }}</td>
+    <td class="mono">{{ row.left if row.left is not none else '—' }}</td>
+    <td class="mono"{% if row.differs %} style="background:var(--warn-bg); color:var(--warn)"{% endif %}>{{ row.right if row.right is not none else '—' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+<p class="sub" style="margin-top:18px"><a href="{{ base }}/">&larr; all traces</a></p>
+{% endblock %}

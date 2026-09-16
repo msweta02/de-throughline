@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Passage — record {{ trace.record_key }}{% endblock %}
+{% block style %}
+  .shape { display: flex; gap: 8px; align-items: stretch; overflow-x: auto; padding-bottom: 4px; }
+  .step { flex: 1 1 0; min-width: 170px; background: var(--panel);
+          border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .step.break { border-color: var(--warn); background: var(--warn-bg); }
+  .step .name { font-weight: 600; margin-bottom: 6px; }
+  .rows { font-size: 20px; letter-spacing: .02em; }
+  .rows .to { color: var(--muted); font-size: 15px; margin: 0 4px; }
+  .step.break .rows { color: var(--warn); font-weight: 700; }
+  .deltas { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .grid td, .grid th { border-bottom: 1px solid var(--line); }
+  .grid .field { font-weight: 600; white-space: nowrap; }
+  .grid .val { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+  .grid .changed { background: var(--add-bg); }
+  .grid .absent { color: var(--muted); }
+  .grid .null { color: var(--muted); font-style: italic; }
+  .grid .ord { color: var(--muted); font-size: 11px; margin-right: 5px; }
+  .grid .extra { border-top: 1px dotted var(--line); margin-top: 4px; padding-top: 4px; }
+  .verdict { margin: 14px 0 22px; padding: 12px 14px; border-radius: 8px;
+             border: 1px solid var(--line); background: var(--panel); }
+  .verdict.break { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); }
+{% endblock %}
+{% block body %}
+<h1>Record <span class="mono">{{ trace.record_key }}</span></h1>
+<div class="sub">
+  <span class="mono">{{ trace.dag_id }}</span> ·
+  run <span class="mono">{{ trace.run_id }}</span> ·
+  bundle <span class="pill">{{ trace.bundle_version }}</span>
+  {% if other_runs %}
+    · compare with
+    {% for run in other_runs %}
+      <a href="{{ base }}/diff?dag_id={{ trace.dag_id }}&record_key={{ trace.record_key }}&left={{ trace.run_id }}&right={{ run.run_id }}">{{ run.bundle_version }}</a>{% if not loop.last %}, {% endif %}
+    {% endfor %}
+  {% endif %}
+</div>
+
+<h2>Shape</h2>
+<div class="shape">
+  {% for column in trace.columns %}
+  <div class="step{% if column.shape.fans_out %} break{% endif %}">
+    <div class="name">{{ column.task_id }}</div>
+    <div class="rows">
+      {% if column.shape.rows_in is not none %}{{ column.shape.rows_in }}<span class="to">&rarr;</span>{% endif %}{{ column.shape.rows_out }}
+      <span class="to">{{ 'row' if column.shape.rows_out == 1 else 'rows' }}</span>
+    </div>
+    <div class="deltas">
+      {% for f in column.shape.fields_added %}<span class="pill add">+{{ f }}</span>{% endfor %}
+      {% for f in column.shape.fields_dropped %}<span class="pill drop">&minus;{{ f }}</span>{% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="verdict{% if trace.breaks %} break{% endif %}">
+  {% if trace.breaks %}
+    Row count changed at <strong>{{ trace.breaks | join(', ') }}</strong>
+    ({{ trace.row_counts | join(' &rarr; ') | safe }}). One record went in; more than one came out.
+  {% else %}
+    One row in, one row out, all the way through ({{ trace.row_counts | join(' &rarr; ') | safe }}).
+  {% endif %}
+</div>
+
+<h2>Values</h2>
+<div class="panel" style="padding:0; overflow-x:auto;">
+<table class="grid">
+  <tr>
+    <th>field</th>
+    {% for column in trace.columns %}<th>{{ column.task_id }}</th>{% endfor %}
+  </tr>
+  {% for name in trace.fields %}
+  <tr>
+    <td class="field mono">{{ name }}</td>
+    {% for column in trace.columns %}
+      {% if column.present(name) %}
+      <td class="val{% if name in column.changed %} changed{% endif %}">
+        {% for row in column.rows %}
+        <div{% if not loop.first %} class="extra"{% endif %}>
+          {% if column.rows | length > 1 %}<span class="ord">[{{ loop.index0 }}]</span>{% endif %}
+          {% if row.get(name) is none %}<span class="null">null</span>{% else %}{{ row.get(name) }}{% endif %}
+        </div>
+        {% endfor %}
+      </td>
+      {% else %}
+      <td class="val absent">·</td>
+      {% endif %}
+    {% endfor %}
+  </tr>
+  {% endfor %}
+</table>
+</div>
+
+<p class="sub" style="margin-top:18px">
+  <a href="{{ base }}/">&larr; all traces</a>
+</p>
+{% endblock %}

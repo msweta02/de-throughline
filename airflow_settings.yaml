@@ -1,0 +1,8 @@
+airflow:
+  connections:
+  pools:
+  variables:
+    # Switch 1: the global kill switch. Passage captures nothing without it,
+    # and with it off the decorator is not even in the call path.
+    - variable_name: passage_enabled
+      variable_value: "true"
