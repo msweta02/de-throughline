@@ -11,8 +11,9 @@ broken 100%. If a change does not make one of the demo beats in
 ## Read first
 
 - `README.md` — what it is and how it works.
-- `VERIFY.md` — **what has actually been executed and what has not.** No part of
-  this has run inside an Airflow scheduler yet. Check this before trusting any
+- `VERIFY.md` — **what has actually been executed and what has not.** The demo
+  path now runs inside a real Airflow 3.1 scheduler; what is still untested is
+  everything beyond local `astro dev`. Check it before trusting any
   Airflow-facing claim.
 
 ## Shape of the code

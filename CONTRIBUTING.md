@@ -50,8 +50,9 @@ same commit.
 
 ## Airflow-facing changes
 
-Read [VERIFY.md](VERIFY.md) first. Nothing here has run inside an Airflow
-scheduler yet, and `throughline/runtime.py` is deliberately the only module that
-touches Airflow, so that a wrong guess about 3.1 is a one-file fix. Keep it
-that way: if you need a new piece of Airflow context, add an accessor there
-with a fallback rather than importing Airflow somewhere new.
+Read [VERIFY.md](VERIFY.md) first, and re-run the demo path in `astro dev`
+rather than trusting the tests — the two defects found on 22 Sept were both
+invisible off-scheduler. `throughline/runtime.py` is deliberately the only
+module that touches Airflow, so that a wrong guess about 3.1 is a one-file fix.
+Keep it that way: if you need a new piece of Airflow context, add an accessor
+there with a fallback rather than importing Airflow somewhere new.

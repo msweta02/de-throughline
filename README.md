@@ -7,11 +7,8 @@ An Airflow 3.1 plugin that traces a single record as it moves through a pipeline
 
 Built for the Astronomer *Beyond the Dag* hackathon. Apache 2.0.
 
-The repository is `de-throughline` and the plugin is **Throughline**. The code
-still carries the earlier name `throughline` throughout: the Python package, the
-`@throughline.trace` decorator, the `/throughline` URL prefix, the `throughline_enabled`
-Variable and the **Browse → Throughline** nav entry. Identifiers below are written
-as they actually appear in the code, not as the product is named.
+The repository directory is `de-throughline`; the plugin, its package, its
+`/throughline` URL prefix and its nav entry are all `throughline`.
 
 ---
 
@@ -72,8 +69,8 @@ Inside Airflow:
 astro dev start
 ```
 
-then set the `throughline_enabled` Airflow Variable (`airflow_settings.yaml` already
-does), trigger `orders_enrichment`, and open **Browse → Throughline**.
+then set the `throughline_enabled` Airflow Variable (`airflow_settings.yaml`
+already does), trigger `orders_enrichment`, and open **Browse → Throughline**.
 
 ## Adoption: this has to work on DAGs you did not write
 
@@ -92,12 +89,12 @@ Nothing else changes. The task runs normally, with the same arguments, the same
 return value and the same side effects; Throughline reads what went in and what
 came out. This alone gives you the grid and the shape strip.
 
-> **Decorator order matters.** `@throughline.trace` goes *below* `@task`. Airflow's
-> `@task` has to be outermost, because it turns the function into something that
-> builds a task at parse time — wrapping *that* would run the capture wrapper
-> while the DAG file is being parsed rather than inside the worker. Getting it
-> backwards is silent enough to be worth a loud error, so Throughline raises
-> `DecoratorOrderError` if it sees it.
+> **Decorator order matters.** `@throughline.trace` goes *below* `@task`.
+> Airflow's `@task` has to be outermost, because it turns the function into
+> something that builds a task at parse time — wrapping *that* would run the
+> capture wrapper while the DAG file is being parsed rather than inside the
+> worker. Getting it backwards is silent enough to be worth a loud error, so
+> Throughline raises `DecoratorOrderError` if it sees it.
 
 ### Tier 2 — replay scoping. One line per source query.
 
@@ -145,8 +142,8 @@ assert decorated is step  # passes when the global switch is off
 Reading an Airflow Variable at parse time is ordinarily an anti-pattern — it is
 a database round trip per parse. It is the deliberate trade here, because the
 alternative is that the wrapper is always present, which is the exact cost the
-switch exists to remove. `THROUGHLINE_ENABLED` is checked first, so local runs, CI
-and tests never touch the metadata database.
+switch exists to remove. `THROUGHLINE_ENABLED` is checked first, so local
+runs, CI and tests never touch the metadata database.
 
 On top of that, a traced normal run captures the **first 100 distinct records**,
 not the whole table. A scoped replay lifts the cap, because it is one record by
@@ -235,11 +232,12 @@ cost of not refusing is a corrupted production table.
 
 Four pieces.
 
-**1. `@throughline.trace` — the capture decorator.** Checks the switches, snapshots
-rows on the way in and on the way out, writes them to the capture store. It
-captures anything it can read as records: a warehouse relation behind a
-`throughline.Table` handle, a list of dicts, or anything with `to_dict("records")`
-(pandas and polars, without importing either). Snapshot failures are logged and
+**1. `@throughline.trace` — the capture decorator.** Checks the switches,
+snapshots rows on the way in and on the way out, writes them to the capture
+store. It captures anything it can read as records: a warehouse relation behind
+a `throughline.Table` handle, a list of dicts, or anything with
+`to_dict("records")` (pandas and polars, without importing either). Snapshot
+failures are logged and
 swallowed — a tool that breaks the pipeline it is observing has failed at its job.
 
 **2. The capture table.** Long format, one row per field:
@@ -333,11 +331,16 @@ on the endpoints, column-level lineage, or an LLM explaining the trace.
 
 ## Verification and limitations
 
-**Nothing here has yet run inside an Airflow scheduler** — Docker was
-unavailable during the build. Everything not Airflow-facing has been run end to
-end and is covered by tests; everything Airflow-facing is either copied from a
-plugin known to run on Astro Runtime 3.1-1, or listed as an open assumption with
-its fallback.
+**This runs inside a real Airflow scheduler.** The whole demo path — plugin,
+traced run, scoped replay, all four pages — was executed against Astro Runtime
+3.1-1 on 22 Sept 2026. Doing that found two defects no test could have caught,
+because both depended on objects that only exist inside a live task: `run_type`
+arrives as an enum whose `str()` is `"DagRunType.MANUAL"` rather than
+`"manual"`, and `airflow.sdk.Variable` cannot be read at DAG-parse time at all.
+Both were silent — the DAG went green and captured nothing. Both are fixed.
+
+What has *not* been exercised is anything beyond local `astro dev`: no remote
+executor, no real deployment, no concurrency.
 
 CI runs the tests, the isolation proof and `tools/check_demo.py` on every push,
 across Python 3.11–3.13. That last one asserts the numbers quoted in this README
@@ -345,15 +348,15 @@ and in the demo script — including replaying the hero record against the
 `bundle-v1` tag to confirm the bug still reproduces — so if the documentation
 drifts from the code, the build fails rather than a judge finding out on camera.
 
-Read **[VERIFY.md](VERIFY.md)** before trusting any Airflow-facing claim in this
-file. It also lists the known limitations — most importantly that **the plugin
-endpoints are not authenticated**, which is an Airflow 3.1 default this project
-does not fix.
+Read **[VERIFY.md](VERIFY.md)** for the claim-by-claim record of what was run
+and what was not. It also lists the known limitations — most importantly that
+**the plugin endpoints are not authenticated**, which is an Airflow 3.1 default
+this project does not fix.
 
 ## Layout
 
 ```
-throughline/      the plugin: decorator, capture store, grid, replay, views
+throughline/  the plugin: decorator, capture store, grid, replay, views
 dags/         the demo DAG — a thin binding, no logic
 include/      task bodies, seed SQL, replay plans, the DuckDB databases
 plugins/      the AirflowPlugin registration

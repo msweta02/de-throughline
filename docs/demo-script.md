@@ -37,8 +37,8 @@ create one on camera.
    Point out that none of that came from documentation, and none of it came
    from reading the SQL.
 
-4. One line on adoption, on screen: `@throughline.trace(key="order_id")` above the
-   task. That is all that was added to this DAG.
+4. One line on adoption, on screen: `@throughline.trace(key="order_id")` above
+   the task. That is all that was added to this DAG.
 
 ---
 
@@ -119,5 +119,5 @@ all three broken records without being told which to look for:
 
 - The `task_policy` zero-edit path — it is documented, not built. Claiming it on
   camera would be a lie.
-- Anything implying this has run inside a real Airflow scheduler until it has.
-  See `VERIFY.md`.
+- Anything beyond local `astro dev` — no remote executor or real deployment
+  has been exercised. See `VERIFY.md`.
