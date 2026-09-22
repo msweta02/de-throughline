@@ -7,6 +7,11 @@ An Airflow 3.1 plugin that traces a single record as it moves through a pipeline
 
 Built for the Astronomer *Beyond the Dag* hackathon. Apache 2.0.
 
+The repository is `de-throughline`; the plugin is **Passage**. The Python
+package, the `/passage` URL prefix and the nav entry all use the product name,
+so `astro dev start` names its containers after the directory rather than the
+plugin.
+
 ---
 
 ## Two uses, one mechanism
