@@ -16,8 +16,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from passage import paths, runtime
-from passage.table import SCRATCH_ALIAS, WAREHOUSE_ALIAS
+from throughline import paths, runtime
+from throughline.table import SCRATCH_ALIAS, WAREHOUSE_ALIAS
 
 if TYPE_CHECKING:  # pragma: no cover
     import duckdb
@@ -61,9 +61,9 @@ def write_target(rt: runtime.Runtime | None = None) -> str:
 
 
 def connect_observer(rt: runtime.Runtime | None = None) -> duckdb.DuckDBPyConnection:
-    """The connection Passage snapshots through. Read-only on everything.
+    """The connection Throughline snapshots through. Read-only on everything.
 
-    Passage never writes to the warehouse, so it never asks for write access to
+    Throughline never writes to the warehouse, so it never asks for write access to
     it. That is partly principle and partly mechanics: the task has just been
     writing through its own connection, and a second read-write attachment
     would be contending for DuckDB's exclusive write lock for no reason.

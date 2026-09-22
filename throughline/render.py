@@ -12,9 +12,9 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from passage import paths
+from throughline import paths
 
-_TEMPLATES = paths.PROJECT_ROOT / "passage" / "templates"
+_TEMPLATES = paths.PROJECT_ROOT / "throughline" / "templates"
 
 _env = Environment(
     loader=FileSystemLoader(str(_TEMPLATES)),

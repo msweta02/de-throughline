@@ -1,4 +1,4 @@
-# Passage
+# Throughline
 
 **Follow one record through a DAG, and see what each task did to it.**
 
@@ -7,10 +7,11 @@ An Airflow 3.1 plugin that traces a single record as it moves through a pipeline
 
 Built for the Astronomer *Beyond the Dag* hackathon. Apache 2.0.
 
-The repository is `de-throughline`; the plugin is **Passage**. The Python
-package, the `/passage` URL prefix and the nav entry all use the product name,
-so `astro dev start` names its containers after the directory rather than the
-plugin.
+The repository is `de-throughline` and the plugin is **Throughline**. The code
+still carries the earlier name `throughline` throughout: the Python package, the
+`@throughline.trace` decorator, the `/throughline` URL prefix, the `throughline_enabled`
+Variable and the **Browse → Throughline** nav entry. Identifiers below are written
+as they actually appear in the code, not as the product is named.
 
 ---
 
@@ -71,8 +72,8 @@ Inside Airflow:
 astro dev start
 ```
 
-then set the `passage_enabled` Airflow Variable (`airflow_settings.yaml` already
-does), trigger `orders_enrichment`, and open **Browse → Passage**.
+then set the `throughline_enabled` Airflow Variable (`airflow_settings.yaml` already
+does), trigger `orders_enrichment`, and open **Browse → Throughline**.
 
 ## Adoption: this has to work on DAGs you did not write
 
@@ -83,25 +84,25 @@ additive, both optional.
 
 ```python
 @task
-@passage.trace(key="order_id")
+@throughline.trace(key="order_id")
 def normalize(orders): ...
 ```
 
 Nothing else changes. The task runs normally, with the same arguments, the same
-return value and the same side effects; Passage reads what went in and what came
-out. This alone gives you the grid and the shape strip.
+return value and the same side effects; Throughline reads what went in and what
+came out. This alone gives you the grid and the shape strip.
 
-> **Decorator order matters.** `@passage.trace` goes *below* `@task`. Airflow's
+> **Decorator order matters.** `@throughline.trace` goes *below* `@task`. Airflow's
 > `@task` has to be outermost, because it turns the function into something that
 > builds a task at parse time — wrapping *that* would run the capture wrapper
 > while the DAG file is being parsed rather than inside the worker. Getting it
-> backwards is silent enough to be worth a loud error, so Passage raises
+> backwards is silent enough to be worth a loud error, so Throughline raises
 > `DecoratorOrderError` if it sees it.
 
 ### Tier 2 — replay scoping. One line per source query.
 
 ```sql
-select * from orders where 1=1 and {{ params.passage_scope }}
+select * from orders where 1=1 and {{ params.throughline_scope }}
 ```
 
 Renders to `true` normally and to `order_id = 88231` during a scoped replay.
@@ -115,10 +116,10 @@ not a feature. One line you can read beats a rewriter you cannot.
 ### The zero-edit path, not built
 
 Airflow's `task_policy` cluster policy can wrap every task at parse time, which
-would enable tracing fleet-wide with no DAG edits at all. Passage is structured
-so that this is a small addition — the decorator is a plain function wrapper
-with no DAG-level state. It is claimed here as a design property, not a feature:
-it is not implemented and not tested.
+would enable tracing fleet-wide with no DAG edits at all. Throughline is
+structured so that this is a small addition — the decorator is a plain function
+wrapper with no DAG-level state. It is claimed here as a design property, not a
+feature: it is not implemented and not tested.
 
 ## Switching it off
 
@@ -127,7 +128,7 @@ defaulting to **off**:
 
 | Switch | Where | Default |
 | --- | --- | --- |
-| Global | `passage_enabled` Airflow Variable, read at parse time | off |
+| Global | `throughline_enabled` Airflow Variable, read at parse time | off |
 | Per task | whether the decorator is applied at all | — |
 | Per run | `dag_run.conf` | scheduled runs off, manual runs and replays on |
 
@@ -137,14 +138,14 @@ there is no wrapper in the call path and nothing to cost anything at run time.
 The test for this asserts object identity, not behaviour.
 
 ```python
-decorated = passage.trace(key="order_id")(step)
+decorated = throughline.trace(key="order_id")(step)
 assert decorated is step  # passes when the global switch is off
 ```
 
 Reading an Airflow Variable at parse time is ordinarily an anti-pattern — it is
 a database round trip per parse. It is the deliberate trade here, because the
 alternative is that the wrapper is always present, which is the exact cost the
-switch exists to remove. `PASSAGE_ENABLED` is checked first, so local runs, CI
+switch exists to remove. `THROUGHLINE_ENABLED` is checked first, so local runs, CI
 and tests never touch the metadata database.
 
 On top of that, a traced normal run captures the **first 100 distinct records**,
@@ -171,11 +172,12 @@ about a minute per 45,000 cells.
 
 ## Tracing a normal run changes nothing
 
-When Passage traces a scheduled run, the DAG writes to its real tables exactly
-as it always does. Passage reads them and writes only to its own capture
-database — a separate DuckDB file, not a schema alongside the pipeline's output.
-Its own connection attaches the warehouse `READ_ONLY`, so it cannot write there
-even by accident, and does not contend for the write lock the task is using.
+When Throughline traces a scheduled run, the DAG writes to its real tables
+exactly as it always does. Throughline reads them and writes only to its own
+capture database — a separate DuckDB file, not a schema alongside the
+pipeline's output. Its own connection attaches the warehouse `READ_ONLY`, so it
+cannot write there even by accident, and does not contend for the write lock
+the task is using.
 
 If enabling tracing can alter pipeline behaviour, nobody will turn it on.
 
@@ -215,14 +217,14 @@ DuckDB `ATTACH ... (READ_ONLY)` here is the single-file version of that idea.
 And on top of the mechanical guarantee, tasks opt in:
 
 ```python
-@passage.trace(key="order_id", replay_safe=True)
+@throughline.trace(key="order_id", replay_safe=True)
 ```
 
 A DAG with untagged tasks can still be **traced**; it refuses to **replay**, and
 names the tasks that are not marked:
 
 ```
-ReplayRefused: these tasks are not marked replay_safe, so Passage will not
+ReplayRefused: these tasks are not marked replay_safe, so Throughline will not
 re-execute them: apply_promo
 ```
 
@@ -233,10 +235,10 @@ cost of not refusing is a corrupted production table.
 
 Four pieces.
 
-**1. `@passage.trace` — the capture decorator.** Checks the switches, snapshots
+**1. `@throughline.trace` — the capture decorator.** Checks the switches, snapshots
 rows on the way in and on the way out, writes them to the capture store. It
 captures anything it can read as records: a warehouse relation behind a
-`passage.Table` handle, a list of dicts, or anything with `to_dict("records")`
+`throughline.Table` handle, a list of dicts, or anything with `to_dict("records")`
 (pandas and polars, without importing either). Snapshot failures are logged and
 swallowed — a tool that breaks the pipeline it is observing has failed at its job.
 
@@ -324,7 +326,7 @@ trace shows enough to have the argument with.
 Not lineage. Lineage tells you `orders_enriched` depends on `promotions`. That
 was never the hard part. The hard part is that *this order* came out at 65.00
 and the one next to it came out right, and the answer is two rows where there
-should be one. Passage is record-level and concrete on purpose.
+should be one. Throughline is record-level and concrete on purpose.
 
 Also not: generic SQL rewriting, warehouses other than DuckDB, a React UI, auth
 on the endpoints, column-level lineage, or an LLM explaining the trace.
@@ -351,7 +353,7 @@ does not fix.
 ## Layout
 
 ```
-passage/      the plugin: decorator, capture store, grid, replay, views
+throughline/      the plugin: decorator, capture store, grid, replay, views
 dags/         the demo DAG — a thin binding, no logic
 include/      task bodies, seed SQL, replay plans, the DuckDB databases
 plugins/      the AirflowPlugin registration

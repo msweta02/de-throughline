@@ -11,7 +11,7 @@ repo, not a mock.
 ```bash
 python3 tools/seed_warehouse.py
 python3 tools/local_run.py --run-id nightly_2026_09_15 --bundle-version bundle-v1
-astro dev start                       # then Browse -> Passage
+astro dev start                       # then Browse -> Throughline
 ```
 
 The nightly run captures 100 records with the default cap, which is what an
@@ -37,7 +37,7 @@ create one on camera.
    Point out that none of that came from documentation, and none of it came
    from reading the SQL.
 
-4. One line on adoption, on screen: `@passage.trace(key="order_id")` above the
+4. One line on adoption, on screen: `@throughline.trace(key="order_id")` above the
    task. That is all that was added to this DAG.
 
 ---

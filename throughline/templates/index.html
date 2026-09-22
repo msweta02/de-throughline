@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Passage{% endblock %}
+{% block title %}Throughline{% endblock %}
 {% block style %}
   form { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
   label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
@@ -10,7 +10,7 @@
   .empty { color: var(--muted); padding: 14px; }
 {% endblock %}
 {% block body %}
-<h1>Passage</h1>
+<h1>Throughline</h1>
 <div class="sub">Follow one record through a DAG.</div>
 
 <h2>Traces</h2>
@@ -32,8 +32,8 @@
 {% else %}
 <div class="empty">
   Nothing captured yet. Tracing is off unless asked for: set the
-  <span class="mono">passage_enabled</span> Airflow Variable, then trigger a run
-  with <span class="mono">{"passage": {"trace": true}}</span>.
+  <span class="mono">throughline_enabled</span> Airflow Variable, then trigger a run
+  with <span class="mono">{"throughline": {"trace": true}}</span>.
 </div>
 {% endif %}
 </div>

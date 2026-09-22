@@ -1,6 +1,6 @@
 """The pages, as plain functions returning HTML.
 
-Kept apart from the FastAPI binding in :mod:`passage.api` so the views can be
+Kept apart from the FastAPI binding in :mod:`throughline.api` so the views can be
 rendered and checked without a web server — and without FastAPI, which only
 exists inside the Airflow image.
 """
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from passage import grid, render, store
+from throughline import grid, render, store
 
 
 def index(base: str, default_bundle: str = "current") -> str:

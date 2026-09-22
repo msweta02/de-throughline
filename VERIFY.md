@@ -19,22 +19,22 @@ grid, replay isolation — has been run end to end and is covered by tests.
 | The seeded bug fans out for exactly 3 of 5,000 customers | `tools/seed_warehouse.py`, then a count of orders with more than one output row |
 | `1 -> 1 -> 2 -> 2` for record 88231 under bundle-v1 | `tools/local_run.py --replay --scope "order_id = 88231"` |
 | `1 -> 1 -> 1 -> 1` for the same record under bundle-v2 | same, after the fix |
-| `row_ordinal` keeps both rows of a fanned-out record | `tests/test_passage.py` |
-| The global switch removes the wrapper rather than short-circuiting it | `tests/test_passage.py` — asserts the returned object *is* the original function |
-| Scheduled runs capture nothing by default | `tests/test_passage.py` |
-| Sampling caps by record, not by row | `tests/test_passage.py` |
-| Tracing does not change what a task returns | `tests/test_passage.py` |
-| Replay refuses tasks that are not marked safe, by name | `tests/test_passage.py` |
+| `row_ordinal` keeps both rows of a fanned-out record | `tests/test_throughline.py` |
+| The global switch removes the wrapper rather than short-circuiting it | `tests/test_throughline.py` — asserts the returned object *is* the original function |
+| Scheduled runs capture nothing by default | `tests/test_throughline.py` |
+| Sampling caps by record, not by row | `tests/test_throughline.py` |
+| Tracing does not change what a task returns | `tests/test_throughline.py` |
+| Replay refuses tasks that are not marked safe, by name | `tests/test_throughline.py` |
 | The demo's own numbers are guarded | `tools/check_demo.py`, run by CI — seed condition, the fix holding on current code, and the bug reproducing against the `bundle-v1` tag |
 | All four pages render | rendered to HTML from real captures, asserting the grid and diff text |
 | A full traced run finds all 3 broken records unaided | `tools/local_run.py --sample all` over 5,000 orders, ~8s |
-| Captured values are escaped safely on the bulk-insert path | `tests/test_passage.py` — a value containing `'); DROP TABLE ...` round-trips intact and the store survives |
-| CLI and plugin replays take the same path | `tools/local_run.py --replay` calls `passage.replay.run`, so both hit the same preflight and both appear in the replays table |
+| Captured values are escaped safely on the bulk-insert path | `tests/test_throughline.py` — a value containing `'); DROP TABLE ...` round-trips intact and the store survives |
+| CLI and plugin replays take the same path | `tools/local_run.py --replay` calls `throughline.replay.run`, so both hit the same preflight and both appear in the replays table |
 
 ## Verified by copying something that works
 
 `AirflowPlugin` with `fastapi_apps` and `external_views` — the attribute shape in
-`plugins/passage_plugin.py` is taken from a plugin running against Astro Runtime
+`plugins/throughline_plugin.py` is taken from a plugin running against Astro Runtime
 3.1-1. That includes the gotcha that `external_views["href"]` must be relative,
 without a leading slash, and must agree with `fastapi_apps["url_prefix"]`, or
 RBAC denies access to the page. Here both are derived from one constant so they
@@ -44,11 +44,11 @@ cannot drift.
 
 | Assumption | Where | If it is wrong |
 | --- | --- | --- |
-| `context["dag_run"].bundle_version` is how a task reads its bundle version | `passage/runtime.py` | Versions record as `unknown`; the diff view loses its labels but still diffs by run. Falls back to `PASSAGE_BUNDLE_VERSION` |
-| TaskFlow renders `{{ params.passage_scope }}` in arguments passed to a task | `dags/orders_enrichment.py` | Scoping falls back to the predicate on `dag_run.conf`, which `passage/scope.py` already reads. This is why that fallback exists |
+| `context["dag_run"].bundle_version` is how a task reads its bundle version | `throughline/runtime.py` | Versions record as `unknown`; the diff view loses its labels but still diffs by run. Falls back to `THROUGHLINE_BUNDLE_VERSION` |
+| TaskFlow renders `{{ params.throughline_scope }}` in arguments passed to a task | `dags/orders_enrichment.py` | Scoping falls back to the predicate on `dag_run.conf`, which `throughline/scope.py` already reads. This is why that fallback exists |
 | `dag_run.conf` overrides a declared `param` of the same name at trigger time | replay triggering | Same fallback covers it |
-| `@task` applied above `@passage.trace` executes the wrapper in the worker | `passage/tracing.py` | Capture would run at parse time. The reverse order raises `DecoratorOrderError`, so the failure is loud either way |
-| `Variable.get` works at DAG-parse time in 3.1 | `passage/config.py` | Global switch reads as off and nothing captures. `PASSAGE_ENABLED` is checked first and bypasses Airflow entirely |
+| `@task` applied above `@throughline.trace` executes the wrapper in the worker | `throughline/tracing.py` | Capture would run at parse time. The reverse order raises `DecoratorOrderError`, so the failure is loud either way |
+| `Variable.get` works at DAG-parse time in 3.1 | `throughline/config.py` | Global switch reads as off and nothing captures. `THROUGHLINE_ENABLED` is checked first and bypasses Airflow entirely |
 
 Each of these degrades to something harmless rather than raising, which is
 deliberate: a tracing tool that breaks the pipeline it is observing has failed
@@ -65,7 +65,7 @@ at its job.
   role, described in the README, but no other warehouse is implemented.
 - **Replay runs in the API server process**, not through the scheduler. That is
   what makes it take seconds, and it is why a DAG has to register its replay
-  plan in `include/passage_replays.py`.
+  plan in `include/throughline_replays.py`.
 - **The capture store is a single DuckDB file.** DuckDB takes an exclusive
   write lock per file, so concurrent tasks briefly contend. Writes are short and
   retried; a DAG with wide parallel fan-out would want Postgres instead.

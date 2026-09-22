@@ -32,9 +32,9 @@ class Step:
 
         Absent metadata counts as unsafe. That covers both a task nobody marked
         and a task whose decorator was compiled out because tracing is off
-        globally — in either case Passage cannot vouch for it.
+        globally — in either case Throughline cannot vouch for it.
         """
-        return bool(getattr(self.func, "__passage__", {}).get("replay_safe"))
+        return bool(getattr(self.func, "__throughline__", {}).get("replay_safe"))
 
 
 _PLANS: dict[str, list[Step]] = {}

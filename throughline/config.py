@@ -5,7 +5,7 @@ near a real deployment. "Nothing" here means *no wrapper in the call path*, not
 an early ``return`` inside one:
 
 1. **Global** — an Airflow Variable, read once at DAG-parse time. When it is
-   off, ``@passage.trace`` hands back the undecorated function and Passage is
+   off, ``@throughline.trace`` hands back the undecorated function and Throughline is
    not in the call stack at all.
 2. **Per task** — whether the decorator was applied to that task.
 3. **Per run** — ``dag_run.conf``. Scheduled runs capture nothing by default;
@@ -20,7 +20,7 @@ from __future__ import annotations
 import os
 
 #: Airflow Variable consulted at parse time. Absent means off.
-GLOBAL_SWITCH = "passage_enabled"
+GLOBAL_SWITCH = "throughline_enabled"
 
 #: Distinct records captured per snapshot when the run has not scoped itself.
 DEFAULT_SAMPLE_RECORDS = 100
@@ -42,8 +42,8 @@ def globally_enabled() -> bool:
     The environment variable is checked first so local runs, tests and CI never
     touch the metadata database at all.
     """
-    if "PASSAGE_ENABLED" in os.environ:
-        return _as_bool(os.environ["PASSAGE_ENABLED"])
+    if "THROUGHLINE_ENABLED" in os.environ:
+        return _as_bool(os.environ["THROUGHLINE_ENABLED"])
     return _as_bool(_read_switch())
 
 
@@ -75,32 +75,32 @@ def _read_switch() -> object | None:
         return None
 
 
-def run_enabled(run_type: str, passage_conf: dict) -> bool:
+def run_enabled(run_type: str, throughline_conf: dict) -> bool:
     """Switch 3, evaluated inside the task.
 
-    ``{"passage": {"trace": true}}`` in ``dag_run.conf`` turns capture on for a
-    single run; ``{"passage": {"trace": false}}`` turns it off even for a
+    ``{"throughline": {"trace": true}}`` in ``dag_run.conf`` turns capture on for a
+    single run; ``{"throughline": {"trace": false}}`` turns it off even for a
     manual one. With nothing said, manual runs and replays capture and
     scheduled runs do not — a scheduled production run is exactly the place
     where an unasked-for side effect is least welcome.
     """
-    if "trace" in passage_conf:
-        return _as_bool(passage_conf["trace"])
-    if passage_conf.get("replay"):
+    if "trace" in throughline_conf:
+        return _as_bool(throughline_conf["trace"])
+    if throughline_conf.get("replay"):
         return True
     return run_type.lower() in {"manual", "manual_triggered", "backfill"}
 
 
-def sample_records(passage_conf: dict) -> int | None:
+def sample_records(throughline_conf: dict) -> int | None:
     """How many distinct records to capture. ``None`` means every one.
 
     A scoped replay is one record by construction, so the cap is lifted there
     rather than having to be raised by hand.
     """
-    if passage_conf.get("scope"):
+    if throughline_conf.get("scope"):
         return None
-    if "sample" in passage_conf:
-        value = passage_conf["sample"]
+    if "sample" in throughline_conf:
+        value = throughline_conf["sample"]
         if value in (None, "all", 0):
             return None
         try:
@@ -111,6 +111,6 @@ def sample_records(passage_conf: dict) -> int | None:
     # Read defensively. This runs inside the task, and a typo in an environment
     # variable must not be able to fail somebody's pipeline.
     try:
-        return max(1, int(os.environ.get("PASSAGE_SAMPLE_RECORDS", DEFAULT_SAMPLE_RECORDS)))
+        return max(1, int(os.environ.get("THROUGHLINE_SAMPLE_RECORDS", DEFAULT_SAMPLE_RECORDS)))
     except (TypeError, ValueError):
         return DEFAULT_SAMPLE_RECORDS

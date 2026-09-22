@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT))
 
 # Switch 1 has to be on before the steps module is imported, or the decorator
 # compiles itself out and there is nothing to check.
-os.environ.setdefault("PASSAGE_ENABLED", "1")
+os.environ.setdefault("THROUGHLINE_ENABLED", "1")
 
 STEPS = "include/orders_enrichment/steps.py"
 HERO = "88231"
@@ -38,7 +38,7 @@ def check(label: str, actual: object, expected: object) -> None:
 
 def replay_record(bundle_version: str) -> tuple[list[int], dict]:
     """Replay the hero record and return its row counts and final values."""
-    from passage import grid, replay
+    from throughline import grid, replay
 
     result = replay.run("orders_enrichment", f"order_id = {HERO}", bundle_version)
     if not result.ok:
@@ -54,12 +54,12 @@ def git(*args: str) -> subprocess.CompletedProcess:
 
 
 def main() -> int:
-    from passage import session
+    from throughline import session
 
     subprocess.run(
         [sys.executable, "tools/seed_warehouse.py"], cwd=ROOT, check=True, stdout=subprocess.DEVNULL
     )
-    import include.passage_replays  # noqa: F401
+    import include.throughline_replays  # noqa: F401
 
     print("\nthe data condition the demo depends on")
     con = session.connect_observer()
@@ -101,7 +101,7 @@ def main() -> int:
             import include.orders_enrichment.steps as steps_mod
 
             importlib.reload(steps_mod)
-            importlib.reload(sys.modules["include.passage_replays"])
+            importlib.reload(sys.modules["include.throughline_replays"])
             counts, final = replay_record("bundle-v1")
             check("row counts", counts, [1, 1, 2, 2])
             check("total discount", final.get("total_discount_pct"), "35")

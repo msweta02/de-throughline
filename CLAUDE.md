@@ -1,4 +1,4 @@
-# Passage — working notes
+# Throughline — working notes
 
 An Airflow 3.1 plugin that traces one record through a DAG. Built for the
 Astronomer *Beyond the Dag* hackathon (Plugin Powerhouse category, deadline
@@ -19,28 +19,28 @@ broken 100%. If a change does not make one of the demo beats in
 
 | Path | What |
 | --- | --- |
-| `passage/tracing.py` | the decorator. Named `tracing`, not `trace`, so `passage.trace` is unambiguously the function |
-| `passage/runtime.py` | **the only module that touches Airflow.** Every wrong guess about 3.1 lives here and is a one-file fix |
-| `passage/store.py` | the capture table. Long format, `row_ordinal` within a record |
-| `passage/session.py` | connection policy — the read-only attach that makes replay safe |
-| `passage/grid.py` | assembles captures into the grid and shape strip |
-| `passage/views.py` | pages as plain functions, so they render without FastAPI |
-| `passage/api.py` | thin FastAPI binding |
+| `throughline/tracing.py` | the decorator. Named `tracing`, not `trace`, so `throughline.trace` is unambiguously the function |
+| `throughline/runtime.py` | **the only module that touches Airflow.** Every wrong guess about 3.1 lives here and is a one-file fix |
+| `throughline/store.py` | the capture table. Long format, `row_ordinal` within a record |
+| `throughline/session.py` | connection policy — the read-only attach that makes replay safe |
+| `throughline/grid.py` | assembles captures into the grid and shape strip |
+| `throughline/views.py` | pages as plain functions, so they render without FastAPI |
+| `throughline/api.py` | thin FastAPI binding |
 | `include/orders_enrichment/steps.py` | the real task bodies, runnable without Airflow |
 | `dags/orders_enrichment.py` | binding only, no logic |
 
 ## Invariants — do not break these
 
 - **The global switch removes the wrapper**, it does not short-circuit inside
-  one. `tests/test_passage.py` asserts object identity. If that test starts
+  one. `tests/test_throughline.py` asserts object identity. If that test starts
   asserting behaviour instead, the guarantee has been quietly lost.
 - **`row_ordinal` counts within a record key.** Collapsing it hides the fan-out,
   which is the whole demo.
 - **Capture never raises into the task.** Snapshot failures log and swallow.
-- **`@passage.trace` goes below `@task`.** The reverse runs at parse time.
+- **`@throughline.trace` goes below `@task`.** The reverse runs at parse time.
 - **Never put captured data in XCom.**
-- **Passage writes only to `include/passage.duckdb`.** Its observer connection
-  attaches the warehouse `READ_ONLY`.
+- **Throughline writes only to `include/throughline.duckdb`.** Its observer
+  connection attaches the warehouse `READ_ONLY`.
 
 ## Local workflow
 

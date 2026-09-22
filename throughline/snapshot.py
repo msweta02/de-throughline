@@ -1,7 +1,7 @@
 """Turning whatever crossed a task boundary into rows.
 
-Passage captures anything it can read as records: a warehouse relation behind a
-:class:`~passage.table.Table` handle, a list of dicts, a single dict, or any
+Throughline captures anything it can read as records: a warehouse relation behind a
+:class:`~throughline.table.Table` handle, a list of dicts, a single dict, or any
 object exposing ``to_dict("records")`` (which covers pandas and polars without
 importing either). Anything else is left alone and recorded as uncapturable —
 a task returning a model object or a file path is not an error, it just has
@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
-from passage import table as table_mod
+from throughline import table as table_mod
 
 
 @dataclass

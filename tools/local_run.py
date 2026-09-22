@@ -37,18 +37,18 @@ def main() -> int:
     # Switch 1 is read when the decorator is applied, so it has to be set before
     # the steps module is imported. This is the whole point of that switch: with
     # it off, there is no wrapper to turn off later.
-    os.environ["PASSAGE_ENABLED"] = "0" if args.no_trace else "1"
+    os.environ["THROUGHLINE_ENABLED"] = "0" if args.no_trace else "1"
 
     from include.orders_enrichment import steps  # noqa: E402
-    from passage import errors, replay, runtime  # noqa: E402
-    from passage import scope as scope_mod
+    from throughline import errors, replay, runtime  # noqa: E402
+    from throughline import scope as scope_mod
 
     if args.replay:
-        # Replays go through passage.replay so that the CLI and the plugin take
+        # Replays go through throughline.replay so that the CLI and the plugin take
         # exactly one path: same replay-safety preflight, same scratch database,
         # same row in the replays table. A replay only the CLI knows about would
         # not show up in the UI, which is how this drifted the first time.
-        import include.passage_replays  # noqa: F401
+        import include.throughline_replays  # noqa: F401
 
         try:
             result = replay.run(args.dag_id, args.scope or scope_mod.ALL, args.bundle_version)
@@ -70,18 +70,18 @@ def main() -> int:
 
     run_id = args.run_id or f"local__{uuid.uuid4().hex[:8]}"
 
-    passage_conf: dict = {"trace": True}
+    throughline_conf: dict = {"trace": True}
     if args.scope:
-        passage_conf["scope"] = args.scope
+        throughline_conf["scope"] = args.scope
     if args.sample:
-        passage_conf["sample"] = args.sample
+        throughline_conf["sample"] = args.sample
 
     base = dict(
         dag_id=args.dag_id,
         run_id=run_id,
         bundle_version=args.bundle_version,
         run_type="manual",
-        conf={"passage": passage_conf},
+        conf={"throughline": throughline_conf},
     )
 
     print(f"run_id={run_id}  bundle_version={args.bundle_version}")
@@ -111,7 +111,7 @@ def main() -> int:
 
 def _summarise(dag_id: str, run_id: str, bundle_version: str) -> None:
     """Read back what was captured, the same way the trace view does."""
-    from passage import grid, paths, store
+    from throughline import grid, paths, store
 
     total = store.count_records(dag_id, run_id)
     records = store.list_records(dag_id, run_id)

@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from passage import store
+from throughline import store
 
 
 @dataclass
@@ -59,7 +59,7 @@ class Column:
 
 @dataclass
 class Trace:
-    """One record's passage through one DAG run."""
+    """One record's throughline through one DAG run."""
 
     dag_id: str
     run_id: str

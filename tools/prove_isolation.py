@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from passage import runtime, session  # noqa: E402
+from throughline import runtime, session  # noqa: E402
 
 # Every way a task might plausibly touch a production table.
 ATTEMPTS = [
@@ -42,7 +42,7 @@ def main() -> int:
         dag_id="isolation_check",
         run_id="isolation_check",
         task_id="isolation_check",
-        conf={"passage": {"replay": True, "replay_id": "isolation_check"}},
+        conf={"throughline": {"replay": True, "replay_id": "isolation_check"}},
     )
     try:
         con = session.connect()

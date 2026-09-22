@@ -11,7 +11,7 @@ things worth more than the storage:
 rows — that is the entire point of the fan-out case — so anything keyed only by
 ``record_key`` would collapse exactly the evidence the tool exists to show.
 
-The store is its own DuckDB file. Passage writes here and nowhere else.
+The store is its own DuckDB file. Throughline writes here and nowhere else.
 """
 
 from __future__ import annotations
@@ -21,12 +21,12 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from passage import paths, runtime
-from passage import snapshot as snapshot_mod
+from throughline import paths, runtime
+from throughline import snapshot as snapshot_mod
 
-# The capture *file* is already Passage's, so the schema inside it is named for
-# what it holds. Calling it "passage" would collide with DuckDB's catalog name
-# for passage.duckdb and make every reference ambiguous.
+# The capture *file* is already Throughline's, so the schema inside it is named for
+# what it holds. Calling it "throughline" would collide with DuckDB's catalog name
+# for throughline.duckdb and make every reference ambiguous.
 SCHEMA = "capture"
 
 _CAPTURES_DDL = f"""
@@ -94,7 +94,7 @@ def connect(read_only: bool = False) -> Any:
                 raise
             last = exc
             time.sleep(_LOCK_BACKOFF * (attempt + 1))
-    raise RuntimeError(f"could not open the Passage capture store at {path}") from last
+    raise RuntimeError(f"could not open the Throughline capture store at {path}") from last
 
 
 def record(
@@ -144,7 +144,7 @@ def _literal(value: Any) -> str:
 
     Doubling single quotes is the complete escape for a DuckDB string literal,
     and NUL is stripped because a varchar cannot hold one. Everything written
-    here is already text from :func:`passage.snapshot.to_text`.
+    here is already text from :func:`throughline.snapshot.to_text`.
     """
     if value is None:
         return "NULL"
@@ -160,7 +160,7 @@ def _insert(con: Any, payload: list[tuple]) -> None:
 
     Literals are inlined rather than bound as parameters because DuckDB binds
     them one at a time: 45,000 cells takes 60 seconds through ``executemany``
-    and under a second this way. The capture store is Passage's own private
+    and under a second this way. The capture store is Throughline's own private
     database and every value has already been stringified, but the escaping
     above is still exact — and if it ever is not, the parameterised path below
     runs instead, after a rollback so nothing lands twice.

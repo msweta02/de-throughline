@@ -2,7 +2,7 @@
 
 The convention is one line per source query::
 
-    select * from orders where 1=1 and {{ params.passage_scope }}
+    select * from orders where 1=1 and {{ params.throughline_scope }}
 
 which renders to ``true`` on a normal run and to ``order_id = 88231`` during a
 scoped replay. It is only needed on tasks that read source tables, and only if
@@ -15,7 +15,7 @@ a feature. One line you can read is more honest than a rewriter you cannot.
 
 from __future__ import annotations
 
-from passage import runtime
+from throughline import runtime
 
 #: What an unscoped run narrows to: everything.
 ALL = "true"
@@ -26,7 +26,7 @@ def resolve(value: str | None = None) -> str:
 
     Prefers the templated value the DAG passed in, and falls back to the scope
     carried on ``dag_run.conf``. The fallback is what makes the templating a
-    convenience rather than a dependency: if ``{{ params.passage_scope }}``
+    convenience rather than a dependency: if ``{{ params.throughline_scope }}``
     turns out not to render where this design assumes, a scoped replay still
     scopes, because the predicate is on the conf either way.
     """

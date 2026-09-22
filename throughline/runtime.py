@@ -1,4 +1,4 @@
-"""Everything Passage needs to know about the task it is currently inside.
+"""Everything Throughline needs to know about the task it is currently inside.
 
 This is the only module that talks to Airflow. It is deliberately the only one,
 because Airflow 3.1 is recent and these accessors are the easiest thing in the
@@ -17,7 +17,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Any
 
-# Set by the replay runner in-process; see ``passage.replay``. Local runs and
+# Set by the replay runner in-process; see ``throughline.replay``. Local runs and
 # tests use this too, which is why it is a plain module global rather than
 # anything Airflow-specific.
 _OVERRIDE: dict[str, Any] = {}
@@ -62,7 +62,7 @@ def _bundle_version(context: dict[str, Any] | None) -> str:
             value = getattr(dag_run, attr, None)
             if value:
                 return str(value)
-    return os.environ.get("PASSAGE_BUNDLE_VERSION", "unknown")
+    return os.environ.get("THROUGHLINE_BUNDLE_VERSION", "unknown")
 
 
 @dataclass(frozen=True)
@@ -77,24 +77,24 @@ class Runtime:
     conf: dict[str, Any] = field(default_factory=dict)
 
     @property
-    def passage_conf(self) -> dict[str, Any]:
-        """The ``passage`` block of ``dag_run.conf``, if the caller set one."""
-        block = self.conf.get("passage")
+    def throughline_conf(self) -> dict[str, Any]:
+        """The ``throughline`` block of ``dag_run.conf``, if the caller set one."""
+        block = self.conf.get("throughline")
         return block if isinstance(block, dict) else {}
 
     @property
     def is_replay(self) -> bool:
-        return bool(self.passage_conf.get("replay"))
+        return bool(self.throughline_conf.get("replay"))
 
     @property
     def replay_id(self) -> str | None:
-        value = self.passage_conf.get("replay_id")
+        value = self.throughline_conf.get("replay_id")
         return str(value) if value else None
 
     @property
     def scope(self) -> str | None:
         """The predicate a scoped replay narrows source queries with."""
-        value = self.passage_conf.get("scope")
+        value = self.throughline_conf.get("scope")
         return str(value) if value else None
 
 
@@ -118,9 +118,9 @@ def current() -> Runtime:
     conf: dict[str, Any] = {}
     if dag_run is not None and isinstance(getattr(dag_run, "conf", None), dict):
         conf = dict(dag_run.conf)
-    elif os.environ.get("PASSAGE_CONF"):
+    elif os.environ.get("THROUGHLINE_CONF"):
         try:
-            conf = json.loads(os.environ["PASSAGE_CONF"])
+            conf = json.loads(os.environ["THROUGHLINE_CONF"])
         except json.JSONDecodeError:
             conf = {}
 
@@ -128,16 +128,18 @@ def current() -> Runtime:
 
     resolved = Runtime(
         dag_id=str(
-            getattr(task_instance, "dag_id", None) or os.environ.get("PASSAGE_DAG_ID", "unknown")
+            getattr(task_instance, "dag_id", None)
+            or os.environ.get("THROUGHLINE_DAG_ID", "unknown")
         ),
-        run_id=str((context or {}).get("run_id") or os.environ.get("PASSAGE_RUN_ID", "local")),
+        run_id=str((context or {}).get("run_id") or os.environ.get("THROUGHLINE_RUN_ID", "local")),
         task_id=str(
-            getattr(task_instance, "task_id", None) or os.environ.get("PASSAGE_TASK_ID", "unknown")
+            getattr(task_instance, "task_id", None)
+            or os.environ.get("THROUGHLINE_TASK_ID", "unknown")
         ),
         bundle_version=_bundle_version(context),
         run_type=str(
             _enum_value(getattr(dag_run, "run_type", None))
-            or os.environ.get("PASSAGE_RUN_TYPE", "manual")
+            or os.environ.get("THROUGHLINE_RUN_TYPE", "manual")
         ),
         conf=conf,
     )

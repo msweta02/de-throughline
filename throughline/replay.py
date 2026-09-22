@@ -3,7 +3,7 @@
 Two guarantees, in order of how much they matter:
 
 1. **It cannot write to production.** The warehouse is attached ``READ_ONLY``
-   and a scratch database takes the writes (see :mod:`passage.session`). A task
+   and a scratch database takes the writes (see :mod:`throughline.session`). A task
    with a hardcoded production write raises instead of succeeding quietly. This
    is enforced by the database, not by every task remembering a convention.
 2. **Tasks opt in.** A DAG with tasks nobody marked ``replay_safe`` can still
@@ -19,7 +19,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from passage import errors, paths, registry, runtime, store
+from throughline import errors, paths, registry, runtime, store
 
 
 @dataclass
@@ -45,7 +45,7 @@ def preflight(dag_id: str) -> list[str]:
     unsafe = registry.unsafe_steps(dag_id)
     if unsafe:
         return [
-            "these tasks are not marked replay_safe, so Passage will not "
+            "these tasks are not marked replay_safe, so Throughline will not "
             f"re-execute them: {', '.join(unsafe)}"
         ]
     return []
@@ -69,7 +69,7 @@ def run(
         raise errors.ReplayRefused(result.note or "replay refused")
 
     conf = {
-        "passage": {
+        "throughline": {
             "trace": True,
             "replay": True,
             "replay_id": replay_id,
