@@ -44,13 +44,35 @@ def globally_enabled() -> bool:
     """
     if "PASSAGE_ENABLED" in os.environ:
         return _as_bool(os.environ["PASSAGE_ENABLED"])
-    try:
-        from airflow.sdk import Variable
+    return _as_bool(_read_switch())
 
-        return _as_bool(Variable.get(GLOBAL_SWITCH, default=None))
+
+def _read_switch() -> object | None:
+    """The switch Variable, read through whichever accessor works here.
+
+    ``airflow.sdk.Variable`` only works *inside a running task*: at DAG-parse
+    time it raises ``ImportError`` on ``SUPERVISOR_COMMS``. Since this function
+    runs at parse time, that made it return False and remove the decorator
+    everywhere — setting the Variable had no effect at all. The metadata-DB
+    accessor is the one that works at parse time, so it is tried first, and the
+    Task SDK one still covers a worker with no database access.
+
+    Either way a failure means "off", because a tracing tool that breaks a
+    parse because it could not read a Variable has failed at its job.
+    """
+    try:
+        from airflow.models import Variable
+
+        return Variable.get(GLOBAL_SWITCH, default_var=None)
+    except Exception:
+        pass
+    try:
+        from airflow.sdk import Variable as SdkVariable
+
+        return SdkVariable.get(GLOBAL_SWITCH, default=None)
     except Exception:
         # No Airflow, no Variable, or no database. All mean "off".
-        return False
+        return None
 
 
 def run_enabled(run_type: str, passage_conf: dict) -> bool:

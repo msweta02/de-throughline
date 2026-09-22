@@ -98,6 +98,18 @@ class Runtime:
         return str(value) if value else None
 
 
+def _enum_value(value: Any) -> Any:
+    """Unwrap an enum to the string behind it.
+
+    ``dag_run.run_type`` arrives as a ``DagRunType`` inside a live task, and
+    ``str()`` on it yields ``"DagRunType.MANUAL"`` rather than ``"manual"`` —
+    which silently fails every comparison against the run-type names. Only the
+    live Task SDK object behaves this way, so this cannot be reproduced by
+    importing ``DagRunType`` and stringifying it. See VERIFY.md.
+    """
+    return getattr(value, "value", value)
+
+
 def current() -> Runtime:
     """Resolve the current runtime, from Airflow if present and env if not."""
     context = _airflow_context()
@@ -124,7 +136,8 @@ def current() -> Runtime:
         ),
         bundle_version=_bundle_version(context),
         run_type=str(
-            getattr(dag_run, "run_type", None) or os.environ.get("PASSAGE_RUN_TYPE", "manual")
+            _enum_value(getattr(dag_run, "run_type", None))
+            or os.environ.get("PASSAGE_RUN_TYPE", "manual")
         ),
         conf=conf,
     )
