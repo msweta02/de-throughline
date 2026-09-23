@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Throughline — {{ dag_id }}{% endblock %}
+{% block style %}
+  .empty { color: var(--muted); padding: 14px; }
+{% endblock %}
+{% block body %}
+<h1>{{ dag_id }}</h1>
+<div class="sub">Traced runs of this DAG. Pick one, then pick a record.</div>
+
+<div class="panel" style="padding:0">
+{% if traces %}
+<table>
+  <tr><th>run</th><th>bundle</th><th>tasks</th><th>records</th><th>captured</th></tr>
+  {% for t in traces %}
+  <tr>
+    <td><a class="mono" href="{{ base }}/runs/{{ t.dag_id }}/{{ t.run_id }}" target="_top">{{ t.run_id }}</a></td>
+    <td><span class="pill">{{ t.bundle_version }}</span></td>
+    <td>{{ t.tasks }}</td>
+    <td>{{ t.records }}</td>
+    <td class="mono">{{ t.started_at }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="empty">
+  Nothing captured for <span class="mono">{{ dag_id }}</span> yet. Tracing is off
+  unless asked for: set the <span class="mono">throughline_enabled</span> Airflow
+  Variable, then trigger a run. Scheduled runs stay silent unless the run conf
+  says <span class="mono">{"throughline": {"trace": true}}</span>.
+</div>
+{% endif %}
+</div>
+
+<p class="sub" style="margin-top:18px">
+  <a href="{{ base }}/" target="_top">all DAGs &rarr;</a>
+</p>
+{% endblock %}

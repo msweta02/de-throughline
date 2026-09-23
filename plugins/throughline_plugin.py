@@ -48,5 +48,17 @@ class ThroughlinePlugin(AirflowPlugin):
             "destination": "nav",
             "category": "browse",
             "icon": "fa-solid fa-magnifying-glass-chart",
-        }
+        },
+        {
+            # A tab on Airflow's own DAG page, beside Overview / Runs / Tasks,
+            # which is where somebody looking at a DAG actually is. Airflow
+            # renders this destination in an iframe and substitutes {DAG_ID}
+            # from the route, so the tab lands on that DAG's traces rather
+            # than the full index.
+            "name": "Throughline",
+            "href": f"{URL_PREFIX}/dags/{{DAG_ID}}",
+            "url_route": f"{URL_PREFIX.lstrip('/')}-dag",
+            "destination": "dag",
+            "icon": "fa-solid fa-magnifying-glass-chart",
+        },
     ]

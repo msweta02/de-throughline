@@ -62,6 +62,12 @@ def index_page() -> HTMLResponse:
     return _html(views.index(URL_PREFIX))
 
 
+@app.get("/dags/{dag_id}", response_class=HTMLResponse, include_in_schema=False)
+def dag_page(dag_id: str) -> HTMLResponse:
+    """The per-DAG index, rendered inside Airflow's own DAG page as a tab."""
+    return _html(views.dag(URL_PREFIX, dag_id))
+
+
 @app.get("/runs/{dag_id}/{run_id}", response_class=HTMLResponse, include_in_schema=False)
 def records_page(dag_id: str, run_id: str, q: str | None = None) -> HTMLResponse:
     return _html(views.records(URL_PREFIX, dag_id, run_id, q))

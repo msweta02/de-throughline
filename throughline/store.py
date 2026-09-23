@@ -211,8 +211,14 @@ def _rows(con: Any, sql: str, params: list | None = None) -> list[dict]:
     return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
 
-def list_traces(limit: int = 50) -> list[dict]:
-    """One entry per captured DAG run, newest first."""
+def list_traces(limit: int = 50, dag_id: str | None = None) -> list[dict]:
+    """One entry per captured DAG run, newest first.
+
+    ``dag_id`` narrows to a single DAG, which is what the per-DAG tab inside
+    Airflow shows: from that page, every other DAG's runs are noise.
+    """
+    clause = "WHERE dag_id = ?" if dag_id else ""
+    params = [dag_id] if dag_id else []
     con = connect(read_only=True)
     try:
         return _rows(
@@ -223,10 +229,12 @@ def list_traces(limit: int = 50) -> list[dict]:
                    count(DISTINCT record_key) AS records,
                    min(captured_at) AS started_at
             FROM {SCHEMA}.captures
+            {clause}
             GROUP BY dag_id, run_id
             ORDER BY started_at DESC
             LIMIT {int(limit)}
             """,
+            params,
         )
     finally:
         con.close()
