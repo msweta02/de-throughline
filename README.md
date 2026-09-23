@@ -39,11 +39,10 @@ category. Apache 2.0.
 | | |
 | --- | --- |
 | [Quickstart](#quickstart) | running in about a minute, no Airflow needed |
+| [How it works](#how-it-works) | the four pieces, and where the data goes |
+| [What it costs](#what-it-costs) | measured, not estimated |
 | [What was hard](#what-was-hard) | the four things that actually cost time |
-| [TESTING.md](TESTING.md) | every scenario, its command and expected result |
-| [VERIFY.md](VERIFY.md) | claim by claim: what has been executed, what has not |
-| [docs/data-flow.md](docs/data-flow.md) | one DAG end to end, every table and snapshot |
-| [ROADMAP.md](ROADMAP.md) | what is unbuilt, and how dbt would fit |
+| [Verification and limitations](#verification-and-limitations) | what has been executed, and what has not |
 
 ---
 
@@ -591,9 +590,10 @@ conflicts; the task's own connection did not. Both share that retry now — and
 it retries lock conflicts *only*, because a permission error does not improve
 after twenty seconds of backoff.
 
-The thread through all of it: this project's own honesty document, `VERIFY.md`,
-was the most useful thing in the repository, because it forced the difference
-between *copied from something that works* and *ran it* to stay visible.
+The thread through all of it: keeping a written record that separated *copied
+from something that works* from *ran it, here, and watched it* was the single
+most useful habit. Every defect above was found by moving a claim from the
+first column to the second.
 
 ## Verification and limitations
 
@@ -609,15 +609,52 @@ What has *not* been exercised is anything beyond local `astro dev`: no remote
 executor, no real deployment, no concurrency.
 
 CI runs the tests, the isolation proof and `tools/check_demo.py` on every push,
-across Python 3.11–3.13. That last one asserts the numbers quoted in this README
-and in the demo script — including replaying the hero record against the
-`bundle-v1` tag to confirm the bug still reproduces — so if the documentation
-drifts from the code, the build fails rather than a judge finding out on camera.
+across Python 3.11–3.13. That last one asserts the numbers quoted in this
+README — including replaying the hero record against the `bundle-v1` tag to
+confirm the bug still reproduces — so if the documentation drifts from the
+code, the build fails rather than somebody finding out on camera.
 
-Read **[VERIFY.md](VERIFY.md)** for the claim-by-claim record of what was run
-and what was not. It also lists the known limitations — most importantly that
-**the plugin endpoints are not authenticated**, which is an Airflow 3.1 default
-this project does not fix.
+### Verified by execution, inside Airflow 3.1
+
+Astro Runtime 3.1-1, local `astro dev start`:
+
+- The plugin loads and mounts; `external_views` puts it in the nav and on the
+  DAG page, and every page renders from real captures.
+- A plain manual trigger with no conf captures **4,500 cells over 100
+  records across four tasks**, both sides of every boundary.
+- `{{ params.throughline_scope }}` renders through TaskFlow — a scoped
+  trigger extracted **1** row rather than 5,000.
+- Replay works through `POST /throughline/replays`, and the replays table
+  records `ok`, `refused` and `failed` from real attempts.
+- Four DAGs triggered **simultaneously** all succeed, 100 records each, with
+  no bleed between them. A ticket and an order deliberately share the id
+  `88231`; the two traces share nothing but the number.
+- Scheduled runs capture **nothing** — verified against a DAG on a
+  one-minute schedule whose trace checkbox defaults to ticked.
+- Tracing does not alter the pipeline's own output: 20 warehouse tables
+  fingerprinted after a traced and an untraced run are identical in row
+  count, columns and contents, with no table and no column added.
+
+### Known limitations
+
+- **The endpoints are not authenticated.** Airflow 3.1 does not authenticate
+  `fastapi_apps` routes and this does not add it. Anyone who can reach the
+  API server can read captured values and trigger a replay.
+- **The bundle-version picker is a label, not a checkout.** The UI accepts a
+  bundle version and shows it, but replay executes whatever the registry
+  currently holds — so picking an old bundle returns today's answer under an
+  old label. The CLI path in `tools/check_demo.py` does check the tag out;
+  the UI does not.
+- **A broad scope replays everything.** `scope` is a raw SQL predicate with
+  no width guard, so `1=1` re-executes every record.
+- **DuckDB only**, and one file with one writer. Wide parallel fan-out inside
+  a single DAG is the case not covered.
+- **`bundle_version` records as `unknown`** under the `dags-folder` bundle.
+  It degrades as designed, costing the diff view its labels rather than the
+  run.
+- **Nothing beyond local `astro dev`** — no remote executor, no deployment.
+- **Page rendering has no automated guard.** Every page is checked by hand;
+  nothing in CI asserts it.
 
 ## Layout
 
@@ -628,15 +665,24 @@ include/      task bodies, seed SQL, replay plans, the DuckDB databases
 plugins/      the AirflowPlugin registration: nav entry and DAG tab
 tools/        seed, local run, isolation proof, demo regression check
 tests/        sanity checks on the switches, row_ordinal and refusal
-docs/         the end-to-end data-flow walkthrough
 .github/      CI: lint, tests, isolation proof, demo check
 ```
 
 The repository directory is `de-throughline`; the plugin, its package, its
 `/throughline` URL prefix and its nav entry are all `throughline`.
 
-Contributing notes and the invariants worth not breaking are in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+### Invariants worth not breaking
+
+- **The global switch removes the wrapper**, it does not short-circuit inside
+  one. The test asserts object identity, not behaviour. The cost of that
+  design is that the switch is not live: changing it needs a restart.
+- **`row_ordinal` counts within a record key.** Collapsing it hides the
+  fan-out, which is the whole point.
+- **Capture never raises into the task.** Snapshot failures log and swallow.
+- **`@throughline.trace` goes below `@task`.** The reverse runs at parse time,
+  and raises `DecoratorOrderError` rather than failing quietly.
+- **Captured data never goes through XCom**, which carries a ~70-byte handle.
+- **Throughline writes only to `include/throughline.duckdb`.**
 
 ## License
 
