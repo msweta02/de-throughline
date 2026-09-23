@@ -60,6 +60,8 @@ Astro Runtime 3.1-1, local `astro dev start`, 22–23 Sept 2026.
 | Throughline appears as a tab on Airflow's own DAG page | `destination: "dag"` puts it after *Details* at `/dags/<dag_id>/plugin/throughline-dag`; confirmed visually in the browser, not only by API |
 | The DAG tab shows one DAG's runs | each of the four DAGs' tabs listed only its own runs; an unknown dag_id gets the empty-state panel rather than an error |
 | Links inside the DAG tab navigate | clicking a run opens its record list inside the frame, with the DAG header and tabs still visible |
+| The global switch genuinely stops capture | with `throughline_enabled=false` **and a restart**, a normal manual run captured 0 cells; with it true and a restart, 4,500 |
+| The global switch is not live | changing the Variable without restarting had no effect in either direction — off-without-restart still captured 4,500, on-without-restart still captured 0 |
 
 ## Found by running it in Airflow, and fixed
 
@@ -95,6 +97,12 @@ One was wrong.
 | Defect | What happened |
 | --- | --- |
 | **Every link on the DAG tab did nothing.** They carried `target="_top"`, added so that opening a run would escape the iframe rather than nest Throughline inside itself. Airflow frames plugin pages with `sandbox="allow-scripts allow-same-origin allow-forms"`, which omits `allow-top-navigation`, so the browser refuses the navigation and reports nothing at all. | Every server-side check passed: the route returned 200, the HTML was correct, the plugin API advertised the view. Only a click showed it. The sandbox is hardcoded in Airflow's `ExternalView`, so the capability cannot be requested — links now navigate inside the frame, which keeps the DAG header and tab row visible anyway |
+
+## Found by trying to switch it off
+
+| Defect | What happened |
+| --- | --- |
+| **Turning the global switch off did nothing on a running Airflow.** Two consecutive runs captured 4,500 cells each with `throughline_enabled=false`. Not a lag: the second was 90 seconds later. | Not a bug in the switch so much as an undocumented consequence of its design. `@throughline.trace` is applied at *import*, and `include/orders_enrichment/steps.py` is imported early by the plugin's replay-plan module, so a long-lived process holds the already-decorated functions in `sys.modules`. A probe showed the contradiction directly: at parse time `enabled=False` while `wrapped=True`, and `importlib.reload` flipped it to `False`. Restarting applies the change in both directions. The README now says so |
 
 ## Environment requirements found the hard way
 

@@ -161,6 +161,19 @@ alternative is that the wrapper is always present, which is the exact cost the
 switch exists to remove. `THROUGHLINE_ENABLED` is checked first, so local
 runs, CI and tests never touch the metadata database.
 
+> **The global switch is not live. Restart Airflow after changing it.**
+> Because it removes the wrapper rather than short-circuiting inside one, the
+> decision is made when the module is imported — and a long-lived scheduler
+> holds that module in `sys.modules` for the life of the process. Flipping the
+> Variable on a running deployment changes what the next *read* returns and
+> nothing else; the already-decorated functions stay as they were. Measured
+> both ways: with the Variable off and no restart a run still captured 4,500
+> cells, and after a restart the same run captured 0.
+>
+> On Astro, note that `astro dev restart` re-applies `airflow_settings.yaml`,
+> which sets `throughline_enabled` back to `"true"`. To keep it off across a
+> restart, change it there too.
+
 On top of that, a traced normal run captures the **first 100 distinct records**,
 not the whole table. A scoped replay lifts the cap, because it is one record by
 construction.

@@ -39,7 +39,10 @@ broken 100%. If a change does not make one of the demo beats in
 
 - **The global switch removes the wrapper**, it does not short-circuit inside
   one. `tests/test_throughline.py` asserts object identity. If that test starts
-  asserting behaviour instead, the guarantee has been quietly lost.
+  asserting behaviour instead, the guarantee has been quietly lost. The cost of
+  that design is that the switch is **not live**: the decorator is applied at
+  import, a long-lived scheduler caches the module, so changing the Variable
+  needs an Airflow restart. Measured, not assumed.
 - **`row_ordinal` counts within a record key.** Collapsing it hides the fan-out,
   which is the whole demo.
 - **Capture never raises into the task.** Snapshot failures log and swallow.
