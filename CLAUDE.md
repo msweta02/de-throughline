@@ -13,6 +13,8 @@ broken 100%. If a change does not make one of the demo beats in
 - `README.md` — what it is and how it works.
 - `TESTING.md` — every scenario, the command, the expected result, and the
   sentence worth saying about it. Start here before a demo.
+- `docs/data-flow.md` — `orders_enrichment` end to end: which table each task
+  writes, where each snapshot is read from, and what replay changes.
 - `ROADMAP.md` — what is deliberately not built, including how a dbt
   integration would fit.
 - `VERIFY.md` — **what has actually been executed and what has not.** The demo

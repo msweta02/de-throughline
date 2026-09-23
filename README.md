@@ -551,7 +551,9 @@ docs/         the demo script the video follows
 Contributing notes and the invariants worth not breaking are in
 [CONTRIBUTING.md](CONTRIBUTING.md). [TESTING.md](TESTING.md) walks every
 scenario with its expected result; [ROADMAP.md](ROADMAP.md) covers what is not
-built and why, including what a dbt integration would take.
+built and why, including what a dbt integration would take;
+[docs/data-flow.md](docs/data-flow.md) traces one DAG end to end — every table
+written, every snapshot taken, and what changes under replay.
 
 ## License
 
