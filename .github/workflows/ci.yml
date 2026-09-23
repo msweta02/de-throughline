@@ -38,6 +38,12 @@ jobs:
       - name: Tests
         run: pytest tests/ -q
 
+      - name: Build the demo warehouse
+        # Every step below reads it. This has to come first: prove_isolation
+        # attaches the warehouse READ_ONLY and cannot create it, so running it
+        # against an unseeded checkout fails with "database does not exist".
+        run: python tools/seed_warehouse.py
+
       - name: Replay cannot write to production
         # Exits non-zero unless every attempted production write was refused
         # and the row counts are untouched. This is the claim the README makes
@@ -50,6 +56,5 @@ jobs:
 
       - name: A traced run captures, and an untraced one does not
         run: |
-          python tools/seed_warehouse.py
           python tools/local_run.py --run-id ci --bundle-version ci
           python tools/local_run.py --run-id ci-off --no-trace
