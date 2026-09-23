@@ -88,6 +88,22 @@ def test_the_trigger_checkbox_decides_when_nothing_else_has():
     assert config.run_enabled("manual", {"replay": True}, {"throughline_trace": False}) is True
 
 
+def test_scheduled_runs_can_be_opted_in(monkeypatch):
+    """Off unless the deployment asks, and asking does not disturb the rest."""
+    from throughline import config
+
+    assert config.run_enabled("scheduled", {}) is False
+
+    monkeypatch.setenv(config.TRACE_SCHEDULED, "1")
+    assert config.run_enabled("scheduled", {}) is True
+    # Opting in is a default, not an override: an explicit "no" still wins.
+    assert config.run_enabled("scheduled", {"trace": False}) is False
+    assert config.run_enabled("scheduled", {}, {"throughline_trace": False}) is False
+
+    monkeypatch.setenv(config.TRACE_SCHEDULED, "0")
+    assert config.run_enabled("scheduled", {}) is False
+
+
 def test_fan_out_is_recorded_as_two_ordinals(capture_home):
     """One record key, two rows. Collapsing these would hide the whole bug."""
     from throughline import runtime, snapshot, store

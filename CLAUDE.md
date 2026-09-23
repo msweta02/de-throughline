@@ -47,6 +47,11 @@ broken 100%. If a change does not make one of the demo beats in
   which is the whole demo.
 - **Capture never raises into the task.** Snapshot failures log and swallow.
 - **`@throughline.trace` goes below `@task`.** The reverse runs at parse time.
+- **Scheduled runs capture nothing unless asked.** `THROUGHLINE_TRACE_SCHEDULED`
+  opts in; the default must stay off. Param defaults are not written into a
+  scheduled run's conf, which is what keeps the Trigger checkbox from quietly
+  switching every nightly run on — verified, and worth re-verifying if the
+  params change.
 - **Never put captured data in XCom.**
 - **Throughline writes only to `include/throughline.duckdb`.** Its observer
   connection attaches the warehouse `READ_ONLY`.

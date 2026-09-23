@@ -81,6 +81,23 @@ def _read_switch() -> object | None:
 #: run's conf stays empty and the run-type default below still governs it.
 TRACE_PARAM = "throughline_trace"
 
+#: Run types that capture when nothing else has decided. Scheduled runs are
+#: absent on purpose: a scheduled production run is where an unasked-for side
+#: effect is least welcome, and somebody has to have asked for it.
+_TRACED_RUN_TYPES = frozenset({"manual", "manual_triggered", "backfill"})
+
+#: Opt in to tracing scheduled runs too. Off unless set, and an environment
+#: variable rather than an Airflow Variable because this is read *inside every
+#: task*, where a metadata-database round trip per task would be a real cost.
+TRACE_SCHEDULED = "THROUGHLINE_TRACE_SCHEDULED"
+
+
+def _traced_run_types() -> frozenset[str]:
+    """Which run types capture by default, widened if the deployment asked."""
+    if _as_bool(os.environ.get(TRACE_SCHEDULED)):
+        return _TRACED_RUN_TYPES | {"scheduled"}
+    return _TRACED_RUN_TYPES
+
 
 def run_enabled(run_type: str, throughline_conf: dict, conf: dict | None = None) -> bool:
     """Switch 3, evaluated inside the task.
@@ -108,7 +125,7 @@ def run_enabled(run_type: str, throughline_conf: dict, conf: dict | None = None)
         return True
     if conf and TRACE_PARAM in conf:
         return _as_bool(conf[TRACE_PARAM])
-    return run_type.lower() in {"manual", "manual_triggered", "backfill"}
+    return run_type.lower() in _traced_run_types()
 
 
 def sample_records(throughline_conf: dict) -> int | None:

@@ -152,6 +152,35 @@ executes normally and records nothing. The programmatic form is
 `{"throughline": {"trace": true}}` in the run conf, which outranks the
 checkbox, and a replay always captures whatever the box says.
 
+Which leaves, for any given run:
+
+| Trigger | Captures? |
+| --- | --- |
+| **Scheduled** | **No** — the deliberate default |
+| Manual, from the UI or the CLI | Yes |
+| Manual with the checkbox unticked | No |
+| Backfill | **Yes** — you asked for the rerun |
+| Replay | Always |
+
+Backfill being in that list is worth knowing before you backfill a wide date
+range: untick the box, or pass `{"throughline": {"trace": false}}`.
+
+### Tracing scheduled runs anyway
+
+Scheduled runs stay silent because a scheduled production run is the worst
+place for an unasked-for side effect, not because tracing them is wrong. A
+deployment that does want them traced opts in:
+
+```bash
+THROUGHLINE_TRACE_SCHEDULED=1
+```
+
+An environment variable rather than an Airflow Variable, because this is read
+*inside every task* and a metadata-database round trip per task would be a
+real cost. It is a default, not an override: an unticked checkbox or an
+explicit `{"throughline": {"trace": false}}` still wins. Like the global
+switch, the containers have to restart before they see it.
+
 The global switch matters most, and it is not an early `return` inside a
 wrapper. When it is off, the decorator hands back the **undecorated function**:
 there is no wrapper in the call path and nothing to cost anything at run time.
