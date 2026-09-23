@@ -84,5 +84,11 @@ is live. Getting this wrong looks like a capture that silently stops working.
 Generic SQL rewriting or AST manipulation. The `task_policy` zero-edit path
 (document it, do not build it). Warehouses other than DuckDB. React UI. Auth on
 the endpoints. Anything OpenLineage — this is record-level and concrete, which
-is precisely what lineage tools do not give you. Multi-record replay. Tests
-beyond the sanity checks.
+is precisely what lineage tools do not give you. Tests beyond the sanity
+checks.
+
+Multi-record replay used to be listed here and is not a non-goal any more: a
+scope is a SQL predicate, so `order_id IN (...)` or a `BETWEEN` already
+replays several records and every one of them is browsable. Nothing was built
+for it; it falls out of the design. What is still missing is a guard — a
+predicate like `1=1` replays the whole table.

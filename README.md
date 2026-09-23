@@ -122,6 +122,25 @@ Renders to `true` normally and to `order_id = 88231` during a scoped replay.
 Only needed on tasks that read source tables, and only if you want replay to
 touch one record instead of the whole table.
 
+The scope is a **SQL predicate, not an id**, so a replay can select whatever
+the source table can express:
+
+| Scope | Replays |
+| --- | --- |
+| `order_id = 88231` | one record, by key |
+| `customer_id = 5000` | by a column that is not the record key |
+| `order_id IN (88231, 84435, 87108)` | three records in one replay |
+| `order_id BETWEEN 83232 AND 83235` | a range |
+| `priority = 'P1' AND queue_id = 4` | any combination the table supports |
+
+All of those are captured and every record is browsable from the replay's own
+record list — the replays table stores one `record_key` per replay, so the
+deep link goes to one of them and the rest are a click away on the run page.
+
+Malformed SQL fails loudly with a parse error pointing at the predicate, and
+nothing is written to production either way, because the warehouse is attached
+`READ_ONLY` for the whole replay.
+
 There is deliberately **no automatic version of this**. Injecting a predicate
 into arbitrary SQL means parsing and rewriting it, which is a research project,
 not a feature. One line you can read beats a rewriter you cannot.

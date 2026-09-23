@@ -67,6 +67,8 @@ Astro Runtime 3.1-1, local `astro dev start`, 22–23 Sept 2026.
 | `THROUGHLINE_TRACE_SCHEDULED` opts scheduled runs in | with it set and the containers restarted, a scheduled run of the same probe DAG captured; unset again, back to nothing |
 | `trace_policy` opts one DAG's scheduled runs in, per DAG | two one-minute-schedule DAGs side by side with no environment variable set: the one declaring `trace_policy({"manual","scheduled"})` captured 8 cells over 2 scheduled runs, the control declaring nothing captured 0 |
 | A nine-task DAG renders and scrolls | nine shape cards and ten table columns rendered; both the shape strip and the values table carry `overflow-x: auto`, and the field column is sticky so row labels survive scrolling right |
+| Replay scopes on any SQL predicate | verified with a key equality, a non-key column, `IN (...)`, `BETWEEN`, and a two-column string predicate; the multi-record scopes captured every record and all were reachable from the replay's record list |
+| A malformed scope fails loudly | `this is not sql` raised a parse error naming the predicate, and `wh.orders` was unchanged |
 | The cost of tracing is known, not guessed | 0.36 s untraced against 1.38 s traced over the same work — about +1 s per 4,500 cells, ~14 bytes per cell on disk, a 2.4 ms Variable read per DAG parse, and literally nothing when the switch is off (`decorated is step`) |
 
 ## Found by running it in Airflow, and fixed
@@ -143,6 +145,11 @@ One was wrong.
 
 ## Known limitations
 
+- **A broad scope replays the whole table.** `scope` is a raw SQL predicate
+  with no width guard, so `1=1` re-executes every record — 5,000 on the demo
+  warehouse. Production stays read-only throughout, so this costs time and
+  capture-store space rather than data, but on an unauthenticated endpoint it
+  is worth knowing.
 - **Plugin endpoints are not auth-protected.** Airflow 3.1 does not
   authenticate `fastapi_apps` routes by default and this project does not add
   it. Confirmed directly: an unauthenticated request reads captured values and
