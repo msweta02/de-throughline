@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import throughline
 from include.orders_enrichment import steps
-from include.orders_joins import steps as steps_joins
+from include.support_desk import steps as desk
 
 throughline.register_replay(
     "orders_enrichment",
@@ -21,32 +21,33 @@ throughline.register_replay(
     ],
 )
 
-# The three join DAGs. Registering them means the replay button works on a
-# joined pipeline too, not just the single-source demo.
+
+# The three support-desk DAGs. A different team's pipeline, a different key,
+# and registered the same way — which is the whole claim about adoption.
 throughline.register_replay(
-    "orders_join_first",
+    "tickets_join_first",
     [
-        ("extract_joined", steps_joins.jf_extract, "scope"),
-        ("normalize", steps_joins.jf_normalize, "previous"),
-        ("compute_total", steps_joins.jf_compute_total, "previous"),
+        ("extract_joined", desk.jf_extract, "scope"),
+        ("normalize", desk.jf_normalize, "previous"),
+        ("score_sla", desk.jf_score_sla, "previous"),
     ],
 )
 
 throughline.register_replay(
-    "orders_join_every_step",
+    "tickets_join_every_step",
     [
-        ("with_customer", steps_joins.je_with_customer, "scope"),
-        ("with_product", steps_joins.je_with_product, "previous"),
-        ("with_shipment", steps_joins.je_with_shipment, "previous"),
-        ("compute_total", steps_joins.je_compute_total, "previous"),
+        ("with_agent", desk.es_with_agent, "scope"),
+        ("with_queue", desk.es_with_queue, "previous"),
+        ("with_events", desk.es_with_events, "previous"),
+        ("score_sla", desk.es_score_sla, "previous"),
     ],
 )
 
 throughline.register_replay(
-    "orders_join_after_single",
+    "tickets_join_after_single",
     [
-        ("extract", steps_joins.ja_extract, "scope"),
-        ("join_reference", steps_joins.ja_join_reference, "previous"),
-        ("compute_total", steps_joins.ja_compute_total, "previous"),
+        ("extract", desk.as_extract, "scope"),
+        ("join_reference", desk.as_join_reference, "previous"),
+        ("score_sla", desk.as_score_sla, "previous"),
     ],
 )

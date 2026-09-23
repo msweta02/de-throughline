@@ -327,41 +327,46 @@ trace shows enough to have the argument with.
 ## Four DAGs, because one proves nothing
 
 `orders_enrichment` is single-source on purpose: the grid has to be legible
-before it is interesting. But "does this work on a DAG that joins?" is the
-first question anyone asks, so three more DAGs cover the shapes a join
-pipeline actually takes. All four key on `order_id`, and all four are traced
-with the same one line per task.
+before it is interesting. But "does this work on a DAG that joins, that
+somebody else wrote, about something else entirely?" is the next question, so
+three more DAGs answer it. They are a **support desk** — tickets, agents,
+queues, events — keyed on `ticket_id`. Nothing in them touches `wh.orders`.
 
 | DAG | Shape |
 | --- | --- |
 | `orders_enrichment` | one source table; the demo's seeded bug |
-| `orders_join_first` | the extract itself joins orders, customers and products |
-| `orders_join_every_step` | a join at every step, widening one table at a time |
-| `orders_join_after_single` | single-table extract, then one multi-table join |
+| `tickets_join_first` | the extract itself joins tickets, agents and queues |
+| `tickets_join_every_step` | a join at every step, widening one table at a time |
+| `tickets_join_after_single` | single-table extract, then one multi-table join |
 
-`orders_join_every_step` is the interesting one. Its last join attaches
-shipments, and four orders shipped in two parcels, so those records read:
+`tickets_join_every_step` is the interesting one. Its last join attaches
+ticket events, and a reassigned ticket has two, so those records read:
 
 ```
-with_customer   with_product   with_shipment   compute_total
-   1 -> 1          1 -> 1          1 -> 2         2 -> 2
+with_agent     with_queue     with_events    score_sla
+  1 -> 1         1 -> 1         1 -> 2        2 -> 2
 ```
 
 That is the same signature as the promotions bug — and here it is **correct**.
-A split shipment is a real row. The tool does not decide which fan-out is a
+A reassignment is a real row. The tool does not decide which fan-out is a
 defect; it shows you the fan-out and which task caused it, which is the part
 you cannot get from reading the SQL. Telling the two apart is the judgement
 the grid exists to support.
 
+One ticket is seeded with `ticket_id = 88231`, the same number as the hero
+*order*. Two systems reusing an id space is ordinary, and it makes "a trace
+never mixes DAGs" testable rather than asserted: replay 88231 in both
+pipelines and the grids share nothing but the number.
+
 Run any of them without a scheduler:
 
 ```bash
-python3 tools/local_run.py --replay --dag-id orders_join_every_step \
-  --scope "order_id = 83245"
+python3 tools/local_run.py --replay --dag-id tickets_join_every_step \
+  --scope "ticket_id = 500004"
 ```
 
 ```
-local  record 83245  1 -> 1 -> 2 -> 2  breaks=with_shipment  line_total=50.9
+local  record 500004  1 -> 1 -> 2 -> 2  breaks=with_events
 ```
 
 ## What this is not

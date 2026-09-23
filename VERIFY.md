@@ -51,8 +51,10 @@ Astro Runtime 3.1-1, local `astro dev start`, 22–23 Sept 2026.
 | The diff view shows the incident | diff of a bundle-v1 replay against a bundle-v2 replay renders 65.0 against 80.0 |
 | A failed replay-plan import costs only the replay button | the plan import failed once at plugin load; the trace UI kept serving and `POST /replays` returned `refused` with a clear reason |
 | The endpoints are not authenticated | plain `curl`, no credentials, 200 — see *Known limitations* |
-| Tracing works on a DAG that joins | `orders_join_every_step` captured 100 records / 6,434 cells across 4 tasks, unchanged decorator |
-| A join fan-out surfaces the same as the seeded bug | order 83245 (two shipments) read `1 -> 1 -> 2 -> 2`, attributed to `with_shipment` |
+| Tracing works on an unrelated team's DAG | the three `tickets_join_*` DAGs key on `ticket_id`, join tickets/agents/queues/events, and touch no orders table; all captured on every task |
+| A join fan-out surfaces the same as the seeded bug | ticket 500004 (reassigned, two events) read `1 -> 1 -> 2 -> 2`, attributed to `with_events` |
+| Four DAGs run concurrently | `orders_enrichment` plus all three `tickets_join_*` triggered simultaneously (`par02`); all succeeded, each capturing 100 records |
+| A trace never mixes DAGs | `ticket_id = 88231` is seeded to collide with the hero `order_id = 88231`. Replayed in both pipelines, each grid shows only its own tasks and fields, and `runs_for_record` returned no foreign-DAG rows |
 | The record list names its real key column | the header reads `order_id`, read from the captures rather than configured |
 | Filtering the record list works | `?q=83245` returned *1 of 100 records*; a non-matching filter says so rather than rendering an empty table |
 
@@ -79,6 +81,12 @@ One was wrong.
 | `@task` applied above `@throughline.trace` executes the wrapper in the worker | **Correct**, shown above |
 | `Variable.get` works at DAG-parse time in 3.1 | **Wrong for the Task SDK accessor**, and the cause of the second defect above. The metadata-DB accessor does work at parse time |
 
+## Found by running four DAGs at once, and fixed
+
+| Defect | What happened |
+| --- | --- |
+| **A concurrent DAG died on the warehouse lock.** DuckDB takes an exclusive write lock per file, and under a LocalExecutor every task is its own process. Four DAGs triggered together raced, and the loser raised `IO Error: Could not set lock on file` rather than waiting. | `throughline/store.py` already retried lock conflicts for the capture store, but the task's own warehouse connection did not. The retry now lives in `throughline/locking.py` and both use it. It waits out lock conflicts only — a permission error or bad SQL still fails immediately |
+
 ## Environment requirements found the hard way
 
 - **`throughline/` is baked into the image, not bind-mounted.** `astro dev`
@@ -100,9 +108,10 @@ One was wrong.
 - **Anything beyond local `astro dev`.** No remote executor, no Astro
   deployment, no Kubernetes. Replay in particular runs in the API server
   process, which is a different proposition under a real deployment.
-- **Concurrency.** Every run tested here was sequential. The capture store is a
-  single DuckDB file with an exclusive write lock, so a DAG with wide parallel
-  fan-out is exactly the case not covered.
+- **Wide parallel fan-out within one DAG.** Four *DAGs* in parallel is now
+  covered (see above), and the lock retry in `throughline/locking.py` is what
+  makes it work. What is still untested is many parallel tasks inside a single
+  DAG, where contention is heavier than four writers.
 - **`bundle_version` against real DAG bundle versioning.** Only the
   `dags-folder` bundle was exercised, which supplies no version at all.
 - **Page rendering has no automated guard.** All four pages were confirmed by

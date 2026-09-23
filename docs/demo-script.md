@@ -115,12 +115,17 @@ all three broken records without being told which to look for:
 5000 records captured, 3 with more rows out than in
 ```
 
-Or, if the question in the room is *does this only work on your toy DAG*: open
-`orders_join_every_step`, which joins three tables in sequence. Order 83245
-reads `1 -> 1 -> 2 -> 2` because it shipped in two parcels — the same
-signature as the bug, and here it is correct. Say that out loud: the tool
-shows the fan-out and names the task; deciding whether it is a defect is still
-yours.
+Or, if the question in the room is *does this only work on your toy DAG*:
+open `tickets_join_every_step` — a support desk, not orders, keyed on
+`ticket_id`, written as if by another team. Ticket 500004 reads
+`1 -> 1 -> 2 -> 2` because it was reassigned and has two events: the same
+signature as the bug, and here it is correct. Say that out loud — the tool
+shows the fan-out and names the task; deciding whether it is a defect is
+still yours.
+
+If there is time for one more sentence: ticket 88231 carries the same number
+as the hero order, on purpose. Two systems reusing an id space is ordinary,
+and the two traces share nothing but the number.
 
 ## Do not show
 

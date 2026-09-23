@@ -29,8 +29,9 @@ broken 100%. If a change does not make one of the demo beats in
 | `throughline/api.py` | thin FastAPI binding |
 | `include/orders_enrichment/steps.py` | the real task bodies, runnable without Airflow |
 | `dags/orders_enrichment.py` | binding only, no logic |
-| `include/orders_joins/steps.py` | task bodies for the three join DAGs |
-| `dags/orders_join_*.py` | the join DAGs — first-step, every-step, after-single |
+| `include/support_desk/steps.py` | task bodies for the three join DAGs, a non-orders domain |
+| `dags/tickets_join_*.py` | the join DAGs — first-step, every-step, after-single |
+| `throughline/locking.py` | waiting out DuckDB's one-writer-per-file lock |
 
 ## Invariants — do not break these
 

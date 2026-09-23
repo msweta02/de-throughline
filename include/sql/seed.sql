@@ -43,48 +43,65 @@ INSERT INTO wh.promotions VALUES
     (900002, 3877, 'LOYALTY-20', 20, DATE '2026-09-01', DATE '2026-09-30'),
     (900003, 5000, 'LOYALTY-20', 20, DATE '2026-09-01', DATE '2026-09-30');
 
+
 -- ---------------------------------------------------------------------------
--- Reference tables for the join DAGs.
+-- A second, unrelated domain: the support desk.
 --
--- The orders_enrichment DAG is deliberately a single-source pipeline, because
--- act one of the demo has to teach the grid before it teaches anything else.
--- These three tables exist so the join DAGs have something real to join to,
--- and so the shape strip has something other than a promotion fan-out to show.
+-- The join DAGs deliberately do not touch orders. A tool that only works on
+-- the pipeline it was written against proves nothing, and sharing tables
+-- between demos makes it impossible to tell isolation from coincidence.
+-- Nothing below joins to wh.orders or wh.promotions.
 
-CREATE OR REPLACE TABLE wh.customers AS
-SELECT
-    i                                                       AS customer_id,
-    'Customer ' || lpad(i::VARCHAR, 4, '0')                 AS customer_name,
-    ['EMEA','AMER','APAC'][1 + (i % 3)]                     AS region,
-    ['standard','plus','enterprise'][1 + (i % 3)]           AS tier,
-    DATE '2024-01-01' + INTERVAL (i % 900) DAY              AS signed_up_on
-FROM range(1, 5001) t(i);
-
--- One row per SKU used by wh.orders, so this join never changes the row count.
-CREATE OR REPLACE TABLE wh.products AS
+CREATE OR REPLACE TABLE wh.queues AS
 SELECT * FROM (VALUES
-    ('SKU-ALPHA',  'Alpha Widget',  'widgets',     900),
-    ('SKU-BRAVO',  'Bravo Bracket', 'brackets',   1750),
-    ('SKU-CIRRUS', 'Cirrus Clamp',  'clamps',     4200),
-    ('SKU-DELTA',  'Delta Driver',  'drivers',     650),
-    ('SKU-ECHO',   'Echo Enclosure','enclosures', 12500)
-) AS p(sku, product_name, category, list_price_cents);
+    (1, 'billing',   4,  'high'),
+    (2, 'technical', 8,  'medium'),
+    (3, 'onboarding',24, 'low'),
+    (4, 'security',  2,  'critical')
+) AS q(queue_id, queue_name, sla_hours, severity_band);
 
--- One shipment per order, except for four orders that shipped in two parcels.
--- A split shipment is an entirely legitimate row, which is the point: joining
--- to it fans the record out exactly the way the promotions bug does, without
--- anything being wrong with either table.
-CREATE OR REPLACE TABLE wh.shipments AS
+CREATE OR REPLACE TABLE wh.agents AS
 SELECT
-    700000 + i                                              AS shipment_id,
-    83231 + i                                               AS order_id,
-    ['UPS','DHL','FEDEX'][1 + (i % 3)]                      AS carrier,
-    DATE '2026-09-05' + INTERVAL (i % 20) DAY               AS shipped_on,
-    'delivered'                                             AS status
-FROM range(1, 5001) t(i);
+    i                                                    AS agent_id,
+    'Agent ' || lpad(i::VARCHAR, 3, '0')                 AS agent_name,
+    ['frontline','escalations','platform'][1 + (i % 3)]  AS team,
+    ['junior','senior','principal'][1 + (i % 3)]         AS seniority
+FROM range(1, 121) t(i);
 
-INSERT INTO wh.shipments VALUES
-    (790001, 83245, 'DHL',   DATE '2026-09-13', 'delivered'),
-    (790002, 84500, 'UPS',   DATE '2026-09-16', 'delivered'),
-    (790003, 86000, 'FEDEX', DATE '2026-09-18', 'delivered'),
-    (790004, 87777, 'UPS',   DATE '2026-09-19', 'delivered');
+CREATE OR REPLACE TABLE wh.tickets AS
+SELECT
+    500000 + i                                              AS ticket_id,
+    1 + (i % 120)                                           AS agent_id,
+    1 + (i % 4)                                             AS queue_id,
+    ['P1','P2','P3','P4'][1 + (i % 4)]                      AS priority,
+    TIMESTAMP '2026-09-02 00:00:00' + INTERVAL (i % 21) DAY
+                                    + INTERVAL (i % 17) HOUR AS opened_at,
+    ['email','chat','phone'][1 + (i % 3)]                   AS channel,
+    5 + ((i * 13) % 400)                                    AS first_response_mins
+FROM range(1, 3001) t(i);
+
+-- One ticket deliberately carries the same numeric id as the hero *order*.
+-- Two systems reusing an id space is ordinary, and it is the sharpest test of
+-- whether a trace keyed on 88231 can pull rows from the wrong DAG.
+INSERT INTO wh.tickets VALUES
+    (88231, 42, 4, 'P1', TIMESTAMP '2026-09-14 09:00:00', 'phone', 12);
+
+-- One event per ticket, except for six that were reassigned and so have two.
+-- A reassignment is a legitimate second row: joining to it fans the record
+-- out without anything being wrong with either table.
+CREATE OR REPLACE TABLE wh.ticket_events AS
+SELECT
+    600000 + i                                              AS event_id,
+    500000 + i                                              AS ticket_id,
+    ['resolved','closed','answered'][1 + (i % 3)]           AS event_type,
+    DATE '2026-09-04' + INTERVAL (i % 18) DAY               AS occurred_on
+FROM range(1, 3001) t(i);
+
+INSERT INTO wh.ticket_events VALUES
+    (690001, 500004, 'reassigned', DATE '2026-09-07'),
+    (690002, 500011, 'reassigned', DATE '2026-09-08'),
+    (690003, 500029, 'reassigned', DATE '2026-09-09'),
+    (690004, 500040, 'reassigned', DATE '2026-09-10'),
+    (690005, 500057, 'reassigned', DATE '2026-09-11'),
+    (690006, 88231,  'reassigned', DATE '2026-09-15'),
+    (690007, 88231,  'answered',   DATE '2026-09-15');

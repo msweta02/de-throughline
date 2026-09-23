@@ -21,7 +21,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from throughline import paths, runtime
+from throughline import locking, paths, runtime
 from throughline import snapshot as snapshot_mod
 
 # The capture *file* is already Throughline's, so the schema inside it is named for
@@ -60,19 +60,6 @@ CREATE TABLE IF NOT EXISTS {SCHEMA}.replays (
 );
 """
 
-#: DuckDB holds an exclusive write lock per file. Tasks in the same DAG run are
-#: separate processes under LocalExecutor, so a brief collision is possible even
-#: in a linear DAG. Connections are held for the length of one insert and
-#: retried, which is cheaper than standing up a second database for captures.
-_LOCK_RETRIES = 12
-_LOCK_BACKOFF = 0.25
-
-
-def _is_lock_conflict(exc: Exception) -> bool:
-    """Whether an exception is another process holding the write lock."""
-    text = str(exc).lower()
-    return "lock" in text or "being used by another" in text or "conflict" in text
-
 
 def _migrate(con: Any) -> None:
     """Bring a store written by an older version up to the current schema.
@@ -96,7 +83,7 @@ def connect(read_only: bool = False) -> Any:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     last: Exception | None = None
-    for attempt in range(_LOCK_RETRIES):
+    for attempt in range(locking.RETRIES):
         try:
             con = duckdb.connect(str(path), read_only=read_only and path.exists())
             if not read_only:
@@ -106,10 +93,10 @@ def connect(read_only: bool = False) -> Any:
         except Exception as exc:
             # Only lock contention is worth waiting out. Retrying a schema or
             # permission error just hides it behind twenty seconds of backoff.
-            if not _is_lock_conflict(exc):
+            if not locking.is_lock_conflict(exc):
                 raise
             last = exc
-            time.sleep(_LOCK_BACKOFF * (attempt + 1))
+            time.sleep(locking.BACKOFF * (attempt + 1))
     raise RuntimeError(f"could not open the Throughline capture store at {path}") from last
 
 
