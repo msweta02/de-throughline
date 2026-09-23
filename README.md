@@ -1,4 +1,4 @@
-# Passage
+# Throughline
 
 **Follow one record through a DAG, and see what each task did to it.**
 
@@ -7,10 +7,8 @@ An Airflow 3.1 plugin that traces a single record as it moves through a pipeline
 
 Built for the Astronomer *Beyond the Dag* hackathon. Apache 2.0.
 
-The repository is `de-throughline`; the plugin is **Passage**. The Python
-package, the `/passage` URL prefix and the nav entry all use the product name,
-so `astro dev start` names its containers after the directory rather than the
-plugin.
+The repository directory is `de-throughline`; the plugin, its package, its
+`/throughline` URL prefix and its nav entry are all `throughline`.
 
 ---
 
@@ -51,6 +49,11 @@ And when a record goes wrong, the same strip reads as a diagnosis. Row count
 `1 → 1 → 2 → 2` says a join fanned out, and says which task did it, before you
 have looked at a single value.
 
+A traced run captures the first 100 records by default, so the record list is
+filterable by key — and it names the actual key column, `order_id` here rather
+than a generic "record", so you know what you are typing into it. The column
+name is read from the captures themselves, not configured.
+
 ## Quickstart
 
 ```bash
@@ -71,8 +74,8 @@ Inside Airflow:
 astro dev start
 ```
 
-then set the `passage_enabled` Airflow Variable (`airflow_settings.yaml` already
-does), trigger `orders_enrichment`, and open **Browse → Passage**.
+then set the `throughline_enabled` Airflow Variable (`airflow_settings.yaml`
+already does), trigger `orders_enrichment`, and open **Browse → Throughline**.
 
 ## Adoption: this has to work on DAGs you did not write
 
@@ -83,25 +86,25 @@ additive, both optional.
 
 ```python
 @task
-@passage.trace(key="order_id")
+@throughline.trace(key="order_id")
 def normalize(orders): ...
 ```
 
 Nothing else changes. The task runs normally, with the same arguments, the same
-return value and the same side effects; Passage reads what went in and what came
-out. This alone gives you the grid and the shape strip.
+return value and the same side effects; Throughline reads what went in and what
+came out. This alone gives you the grid and the shape strip.
 
-> **Decorator order matters.** `@passage.trace` goes *below* `@task`. Airflow's
-> `@task` has to be outermost, because it turns the function into something that
-> builds a task at parse time — wrapping *that* would run the capture wrapper
-> while the DAG file is being parsed rather than inside the worker. Getting it
-> backwards is silent enough to be worth a loud error, so Passage raises
-> `DecoratorOrderError` if it sees it.
+> **Decorator order matters.** `@throughline.trace` goes *below* `@task`.
+> Airflow's `@task` has to be outermost, because it turns the function into
+> something that builds a task at parse time — wrapping *that* would run the
+> capture wrapper while the DAG file is being parsed rather than inside the
+> worker. Getting it backwards is silent enough to be worth a loud error, so
+> Throughline raises `DecoratorOrderError` if it sees it.
 
 ### Tier 2 — replay scoping. One line per source query.
 
 ```sql
-select * from orders where 1=1 and {{ params.passage_scope }}
+select * from orders where 1=1 and {{ params.throughline_scope }}
 ```
 
 Renders to `true` normally and to `order_id = 88231` during a scoped replay.
@@ -115,10 +118,10 @@ not a feature. One line you can read beats a rewriter you cannot.
 ### The zero-edit path, not built
 
 Airflow's `task_policy` cluster policy can wrap every task at parse time, which
-would enable tracing fleet-wide with no DAG edits at all. Passage is structured
-so that this is a small addition — the decorator is a plain function wrapper
-with no DAG-level state. It is claimed here as a design property, not a feature:
-it is not implemented and not tested.
+would enable tracing fleet-wide with no DAG edits at all. Throughline is
+structured so that this is a small addition — the decorator is a plain function
+wrapper with no DAG-level state. It is claimed here as a design property, not a
+feature: it is not implemented and not tested.
 
 ## Switching it off
 
@@ -127,7 +130,7 @@ defaulting to **off**:
 
 | Switch | Where | Default |
 | --- | --- | --- |
-| Global | `passage_enabled` Airflow Variable, read at parse time | off |
+| Global | `throughline_enabled` Airflow Variable, read at parse time | off |
 | Per task | whether the decorator is applied at all | — |
 | Per run | `dag_run.conf` | scheduled runs off, manual runs and replays on |
 
@@ -137,15 +140,15 @@ there is no wrapper in the call path and nothing to cost anything at run time.
 The test for this asserts object identity, not behaviour.
 
 ```python
-decorated = passage.trace(key="order_id")(step)
+decorated = throughline.trace(key="order_id")(step)
 assert decorated is step  # passes when the global switch is off
 ```
 
 Reading an Airflow Variable at parse time is ordinarily an anti-pattern — it is
 a database round trip per parse. It is the deliberate trade here, because the
 alternative is that the wrapper is always present, which is the exact cost the
-switch exists to remove. `PASSAGE_ENABLED` is checked first, so local runs, CI
-and tests never touch the metadata database.
+switch exists to remove. `THROUGHLINE_ENABLED` is checked first, so local
+runs, CI and tests never touch the metadata database.
 
 On top of that, a traced normal run captures the **first 100 distinct records**,
 not the whole table. A scoped replay lifts the cap, because it is one record by
@@ -171,11 +174,12 @@ about a minute per 45,000 cells.
 
 ## Tracing a normal run changes nothing
 
-When Passage traces a scheduled run, the DAG writes to its real tables exactly
-as it always does. Passage reads them and writes only to its own capture
-database — a separate DuckDB file, not a schema alongside the pipeline's output.
-Its own connection attaches the warehouse `READ_ONLY`, so it cannot write there
-even by accident, and does not contend for the write lock the task is using.
+When Throughline traces a scheduled run, the DAG writes to its real tables
+exactly as it always does. Throughline reads them and writes only to its own
+capture database — a separate DuckDB file, not a schema alongside the
+pipeline's output. Its own connection attaches the warehouse `READ_ONLY`, so it
+cannot write there even by accident, and does not contend for the write lock
+the task is using.
 
 If enabling tracing can alter pipeline behaviour, nobody will turn it on.
 
@@ -215,14 +219,14 @@ DuckDB `ATTACH ... (READ_ONLY)` here is the single-file version of that idea.
 And on top of the mechanical guarantee, tasks opt in:
 
 ```python
-@passage.trace(key="order_id", replay_safe=True)
+@throughline.trace(key="order_id", replay_safe=True)
 ```
 
 A DAG with untagged tasks can still be **traced**; it refuses to **replay**, and
 names the tasks that are not marked:
 
 ```
-ReplayRefused: these tasks are not marked replay_safe, so Passage will not
+ReplayRefused: these tasks are not marked replay_safe, so Throughline will not
 re-execute them: apply_promo
 ```
 
@@ -233,11 +237,12 @@ cost of not refusing is a corrupted production table.
 
 Four pieces.
 
-**1. `@passage.trace` — the capture decorator.** Checks the switches, snapshots
-rows on the way in and on the way out, writes them to the capture store. It
-captures anything it can read as records: a warehouse relation behind a
-`passage.Table` handle, a list of dicts, or anything with `to_dict("records")`
-(pandas and polars, without importing either). Snapshot failures are logged and
+**1. `@throughline.trace` — the capture decorator.** Checks the switches,
+snapshots rows on the way in and on the way out, writes them to the capture
+store. It captures anything it can read as records: a warehouse relation behind
+a `throughline.Table` handle, a list of dicts, or anything with
+`to_dict("records")` (pandas and polars, without importing either). Snapshot
+failures are logged and
 swallowed — a tool that breaks the pipeline it is observing has failed at its job.
 
 **2. The capture table.** Long format, one row per field:
@@ -319,23 +324,73 @@ they should is a separate question for whoever owns that table. The logic was
 wrong; the data was arguably wrong too. Both readings are defensible, and the
 trace shows enough to have the argument with.
 
+## Four DAGs, because one proves nothing
+
+`orders_enrichment` is single-source on purpose: the grid has to be legible
+before it is interesting. But "does this work on a DAG that joins, that
+somebody else wrote, about something else entirely?" is the next question, so
+three more DAGs answer it. They are a **support desk** — tickets, agents,
+queues, events — keyed on `ticket_id`. Nothing in them touches `wh.orders`.
+
+| DAG | Shape |
+| --- | --- |
+| `orders_enrichment` | one source table; the demo's seeded bug |
+| `tickets_join_first` | the extract itself joins tickets, agents and queues |
+| `tickets_join_every_step` | a join at every step, widening one table at a time |
+| `tickets_join_after_single` | single-table extract, then one multi-table join |
+
+`tickets_join_every_step` is the interesting one. Its last join attaches
+ticket events, and a reassigned ticket has two, so those records read:
+
+```
+with_agent     with_queue     with_events    score_sla
+  1 -> 1         1 -> 1         1 -> 2        2 -> 2
+```
+
+That is the same signature as the promotions bug — and here it is **correct**.
+A reassignment is a real row. The tool does not decide which fan-out is a
+defect; it shows you the fan-out and which task caused it, which is the part
+you cannot get from reading the SQL. Telling the two apart is the judgement
+the grid exists to support.
+
+One ticket is seeded with `ticket_id = 88231`, the same number as the hero
+*order*. Two systems reusing an id space is ordinary, and it makes "a trace
+never mixes DAGs" testable rather than asserted: replay 88231 in both
+pipelines and the grids share nothing but the number.
+
+Run any of them without a scheduler:
+
+```bash
+python3 tools/local_run.py --replay --dag-id tickets_join_every_step \
+  --scope "ticket_id = 500004"
+```
+
+```
+local  record 500004  1 -> 1 -> 2 -> 2  breaks=with_events
+```
+
 ## What this is not
 
 Not lineage. Lineage tells you `orders_enriched` depends on `promotions`. That
 was never the hard part. The hard part is that *this order* came out at 65.00
 and the one next to it came out right, and the answer is two rows where there
-should be one. Passage is record-level and concrete on purpose.
+should be one. Throughline is record-level and concrete on purpose.
 
 Also not: generic SQL rewriting, warehouses other than DuckDB, a React UI, auth
 on the endpoints, column-level lineage, or an LLM explaining the trace.
 
 ## Verification and limitations
 
-**Nothing here has yet run inside an Airflow scheduler** — Docker was
-unavailable during the build. Everything not Airflow-facing has been run end to
-end and is covered by tests; everything Airflow-facing is either copied from a
-plugin known to run on Astro Runtime 3.1-1, or listed as an open assumption with
-its fallback.
+**This runs inside a real Airflow scheduler.** The whole demo path — plugin,
+traced run, scoped replay, all four pages — was executed against Astro Runtime
+3.1-1 on 22 Sept 2026. Doing that found two defects no test could have caught,
+because both depended on objects that only exist inside a live task: `run_type`
+arrives as an enum whose `str()` is `"DagRunType.MANUAL"` rather than
+`"manual"`, and `airflow.sdk.Variable` cannot be read at DAG-parse time at all.
+Both were silent — the DAG went green and captured nothing. Both are fixed.
+
+What has *not* been exercised is anything beyond local `astro dev`: no remote
+executor, no real deployment, no concurrency.
 
 CI runs the tests, the isolation proof and `tools/check_demo.py` on every push,
 across Python 3.11–3.13. That last one asserts the numbers quoted in this README
@@ -343,15 +398,15 @@ and in the demo script — including replaying the hero record against the
 `bundle-v1` tag to confirm the bug still reproduces — so if the documentation
 drifts from the code, the build fails rather than a judge finding out on camera.
 
-Read **[VERIFY.md](VERIFY.md)** before trusting any Airflow-facing claim in this
-file. It also lists the known limitations — most importantly that **the plugin
-endpoints are not authenticated**, which is an Airflow 3.1 default this project
-does not fix.
+Read **[VERIFY.md](VERIFY.md)** for the claim-by-claim record of what was run
+and what was not. It also lists the known limitations — most importantly that
+**the plugin endpoints are not authenticated**, which is an Airflow 3.1 default
+this project does not fix.
 
 ## Layout
 
 ```
-passage/      the plugin: decorator, capture store, grid, replay, views
+throughline/  the plugin: decorator, capture store, grid, replay, views
 dags/         the demo DAG — a thin binding, no logic
 include/      task bodies, seed SQL, replay plans, the DuckDB databases
 plugins/      the AirflowPlugin registration

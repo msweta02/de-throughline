@@ -15,16 +15,16 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
-from passage import errors, registry, store, views
-from passage import replay as replay_mod
+from throughline import errors, registry, store, views
+from throughline import replay as replay_mod
 
 #: Airflow mounts the app with ``app.mount(url_prefix, subapp)``, so every route
 #: here is served beneath this prefix. The plugin's ``external_views`` href must
 #: agree with it or RBAC denies access to the page.
-URL_PREFIX = "/passage"
+URL_PREFIX = "/throughline"
 
 app = FastAPI(
-    title="Passage",
+    title="Throughline",
     description="Follow one record through a DAG.",
     version="0.1.0",
 )
@@ -63,8 +63,8 @@ def index_page() -> HTMLResponse:
 
 
 @app.get("/runs/{dag_id}/{run_id}", response_class=HTMLResponse, include_in_schema=False)
-def records_page(dag_id: str, run_id: str) -> HTMLResponse:
-    return _html(views.records(URL_PREFIX, dag_id, run_id))
+def records_page(dag_id: str, run_id: str, q: str | None = None) -> HTMLResponse:
+    return _html(views.records(URL_PREFIX, dag_id, run_id, q))
 
 
 @app.get(
@@ -97,7 +97,7 @@ def list_trace_records(dag_id: str, run_id: str) -> JSONResponse:
 
 @app.get("/traces/{dag_id}/{run_id}/{record_key}")
 def get_trace(dag_id: str, run_id: str, record_key: str) -> JSONResponse:
-    """One record's passage through one run."""
+    """One record's throughline through one run."""
     payload = views.trace_json(dag_id, run_id, record_key)
     return JSONResponse(json.loads(json.dumps(payload, default=str)))
 

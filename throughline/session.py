@@ -16,8 +16,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from passage import paths, runtime
-from passage.table import SCRATCH_ALIAS, WAREHOUSE_ALIAS
+from throughline import locking, paths, runtime
+from throughline.table import SCRATCH_ALIAS, WAREHOUSE_ALIAS
 
 if TYPE_CHECKING:  # pragma: no cover
     import duckdb
@@ -33,20 +33,29 @@ def connect(rt: runtime.Runtime | None = None) -> duckdb.DuckDBPyConnection:
     import duckdb
 
     rt = rt or runtime.current()
-    con = duckdb.connect(":memory:")
 
     warehouse = paths.warehouse_db()
     warehouse.parent.mkdir(parents=True, exist_ok=True)
 
-    if rt.is_replay:
-        # READ_ONLY is the whole guarantee. Everything else is bookkeeping.
-        con.execute(f"ATTACH '{warehouse}' AS {WAREHOUSE_ALIAS} (READ_ONLY)")
-        scratch = paths.scratch_db(rt.replay_id or rt.run_id)
-        con.execute(f"ATTACH '{scratch}' AS {SCRATCH_ALIAS}")
-    else:
-        con.execute(f"ATTACH '{warehouse}' AS {WAREHOUSE_ALIAS}")
+    def attach() -> duckdb.DuckDBPyConnection:
+        con = duckdb.connect(":memory:")
+        try:
+            if rt.is_replay:
+                # READ_ONLY is the whole guarantee. Everything else is bookkeeping.
+                con.execute(f"ATTACH '{warehouse}' AS {WAREHOUSE_ALIAS} (READ_ONLY)")
+                scratch = paths.scratch_db(rt.replay_id or rt.run_id)
+                con.execute(f"ATTACH '{scratch}' AS {SCRATCH_ALIAS}")
+            else:
+                # Read-write, and therefore exclusive. Two DAGs writing this
+                # warehouse at once is ordinary under a LocalExecutor, so the
+                # loser waits rather than failing the task.
+                con.execute(f"ATTACH '{warehouse}' AS {WAREHOUSE_ALIAS}")
+        except Exception:
+            con.close()
+            raise
+        return con
 
-    return con
+    return locking.with_retry(attach, f"the warehouse at {warehouse}")
 
 
 def write_target(rt: runtime.Runtime | None = None) -> str:
@@ -61,9 +70,9 @@ def write_target(rt: runtime.Runtime | None = None) -> str:
 
 
 def connect_observer(rt: runtime.Runtime | None = None) -> duckdb.DuckDBPyConnection:
-    """The connection Passage snapshots through. Read-only on everything.
+    """The connection Throughline snapshots through. Read-only on everything.
 
-    Passage never writes to the warehouse, so it never asks for write access to
+    Throughline never writes to the warehouse, so it never asks for write access to
     it. That is partly principle and partly mechanics: the task has just been
     writing through its own connection, and a second read-write attachment
     would be contending for DuckDB's exclusive write lock for no reason.

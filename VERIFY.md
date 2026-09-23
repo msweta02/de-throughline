@@ -4,13 +4,14 @@ Airflow 3.1 is recent and its plugin and context APIs are easy to hallucinate.
 This file records exactly which claims in this repo have been executed and which
 are still assumptions, so that a reviewer does not have to guess.
 
-**The honest headline: no part of this has run inside an Airflow scheduler yet.**
-Docker was unavailable in the development environment, so everything Airflow-facing
-is either copied from a plugin known to run on Astro Runtime 3.1-1 or is marked
-below as unverified. Everything *not* Airflow-facing — capture, the store, the
-grid, replay isolation — has been run end to end and is covered by tests.
+**Headline: this now runs inside a real Airflow scheduler.** On 22 Sept 2026 the
+whole demo path was executed against Astro Runtime 3.1-1 (Airflow 3.1.0+astro.1)
+in Docker — plugin, traced DAG run, scoped replay and all four pages. Doing so
+found two defects that no test could have caught, both now fixed and both
+described below. What has *not* been exercised is anything beyond local
+`astro dev`: no remote executor, no real deployment, no concurrency.
 
-## Verified by execution
+## Verified by execution, outside Airflow
 
 | Claim | How |
 | --- | --- |
@@ -19,53 +20,117 @@ grid, replay isolation — has been run end to end and is covered by tests.
 | The seeded bug fans out for exactly 3 of 5,000 customers | `tools/seed_warehouse.py`, then a count of orders with more than one output row |
 | `1 -> 1 -> 2 -> 2` for record 88231 under bundle-v1 | `tools/local_run.py --replay --scope "order_id = 88231"` |
 | `1 -> 1 -> 1 -> 1` for the same record under bundle-v2 | same, after the fix |
-| `row_ordinal` keeps both rows of a fanned-out record | `tests/test_passage.py` |
-| The global switch removes the wrapper rather than short-circuiting it | `tests/test_passage.py` — asserts the returned object *is* the original function |
-| Scheduled runs capture nothing by default | `tests/test_passage.py` |
-| Sampling caps by record, not by row | `tests/test_passage.py` |
-| Tracing does not change what a task returns | `tests/test_passage.py` |
-| Replay refuses tasks that are not marked safe, by name | `tests/test_passage.py` |
+| `row_ordinal` keeps both rows of a fanned-out record | `tests/test_throughline.py` |
+| The global switch removes the wrapper rather than short-circuiting it | `tests/test_throughline.py` — asserts the returned object *is* the original function |
+| Scheduled runs capture nothing by default | `tests/test_throughline.py` |
+| Sampling caps by record, not by row | `tests/test_throughline.py` |
+| Tracing does not change what a task returns | `tests/test_throughline.py` |
+| Replay refuses tasks that are not marked safe, by name | `tests/test_throughline.py` |
 | The demo's own numbers are guarded | `tools/check_demo.py`, run by CI — seed condition, the fix holding on current code, and the bug reproducing against the `bundle-v1` tag |
-| All four pages render | rendered to HTML from real captures, asserting the grid and diff text |
-| A full traced run finds all 3 broken records unaided | `tools/local_run.py --sample all` over 5,000 orders, ~8s |
-| Captured values are escaped safely on the bulk-insert path | `tests/test_passage.py` — a value containing `'); DROP TABLE ...` round-trips intact and the store survives |
-| CLI and plugin replays take the same path | `tools/local_run.py --replay` calls `passage.replay.run`, so both hit the same preflight and both appear in the replays table |
+| A full traced run finds all 3 broken records unaided | `tools/local_run.py --sample all` over 5,000 orders, ~13s on the development machine |
+| Captured values are escaped safely on the bulk-insert path | `tests/test_throughline.py` — a value containing `'); DROP TABLE ...` round-trips intact and the store survives |
+| CLI and plugin replays take the same path | `tools/local_run.py --replay` calls `throughline.replay.run`, so both hit the same preflight and both appear in the replays table |
 
-## Verified by copying something that works
+## Verified by execution, inside Airflow 3.1
 
-`AirflowPlugin` with `fastapi_apps` and `external_views` — the attribute shape in
-`plugins/passage_plugin.py` is taken from a plugin running against Astro Runtime
-3.1-1. That includes the gotcha that `external_views["href"]` must be relative,
-without a leading slash, and must agree with `fastapi_apps["url_prefix"]`, or
-RBAC denies access to the page. Here both are derived from one constant so they
-cannot drift.
+Astro Runtime 3.1-1, local `astro dev start`, 22–23 Sept 2026.
 
-## Not yet verified — check these first when Airflow is available
+| Claim | How it was shown |
+| --- | --- |
+| The plugin loads and mounts | `GET /throughline/` returns 200 and the page titled *Throughline* |
+| `external_views` puts it in the nav | `airflow plugins` shows `href: throughline/`, `category: browse`, agreeing with `url_prefix` |
+| The DAG parses with the decorator applied | `airflow dags list` shows `orders_enrichment`, no import error |
+| `@task` above `@throughline.trace` executes the wrapper in the worker | a plain manual trigger captured on all four tasks |
+| An ordinary traced run captures | plain trigger, no conf: 4,500 cells over 100 distinct records across 4 tasks, both `in` and `out` |
+| The default sampling cap applies in a real run | the same run stopped at 100 records, not 5,000 |
+| TaskFlow renders `{{ params.throughline_scope }}` | a trigger scoped to `order_id = 88231` extracted **1** row, not 5,000, and captured only record 88231 |
+| `dag_run.conf` overrides a declared `param` of the same name | same run — the predicate arrived from conf |
+| Replay works through the plugin | `POST /throughline/replays` returned `status: ok` for record 88231 across all four tasks |
+| The replays table records outcomes | `refused`, `failed` and `ok` rows all written from real attempts |
+| All four pages render inside Airflow | index, records, trace and diff each returned 200 from real captures |
+| The diff view shows the incident | diff of a bundle-v1 replay against a bundle-v2 replay renders 65.0 against 80.0 |
+| A failed replay-plan import costs only the replay button | the plan import failed once at plugin load; the trace UI kept serving and `POST /replays` returned `refused` with a clear reason |
+| The endpoints are not authenticated | plain `curl`, no credentials, 200 — see *Known limitations* |
+| Tracing works on an unrelated team's DAG | the three `tickets_join_*` DAGs key on `ticket_id`, join tickets/agents/queues/events, and touch no orders table; all captured on every task |
+| A join fan-out surfaces the same as the seeded bug | ticket 500004 (reassigned, two events) read `1 -> 1 -> 2 -> 2`, attributed to `with_events` |
+| Four DAGs run concurrently | `orders_enrichment` plus all three `tickets_join_*` triggered simultaneously (`par02`); all succeeded, each capturing 100 records |
+| A trace never mixes DAGs | `ticket_id = 88231` is seeded to collide with the hero `order_id = 88231`. Replayed in both pipelines, each grid shows only its own tasks and fields, and `runs_for_record` returned no foreign-DAG rows |
+| The record list names its real key column | the header reads `order_id`, read from the captures rather than configured |
+| Filtering the record list works | `?q=83245` returned *1 of 100 records*; a non-matching filter says so rather than rendering an empty table |
 
-| Assumption | Where | If it is wrong |
-| --- | --- | --- |
-| `context["dag_run"].bundle_version` is how a task reads its bundle version | `passage/runtime.py` | Versions record as `unknown`; the diff view loses its labels but still diffs by run. Falls back to `PASSAGE_BUNDLE_VERSION` |
-| TaskFlow renders `{{ params.passage_scope }}` in arguments passed to a task | `dags/orders_enrichment.py` | Scoping falls back to the predicate on `dag_run.conf`, which `passage/scope.py` already reads. This is why that fallback exists |
-| `dag_run.conf` overrides a declared `param` of the same name at trigger time | replay triggering | Same fallback covers it |
-| `@task` applied above `@passage.trace` executes the wrapper in the worker | `passage/tracing.py` | Capture would run at parse time. The reverse order raises `DecoratorOrderError`, so the failure is loud either way |
-| `Variable.get` works at DAG-parse time in 3.1 | `passage/config.py` | Global switch reads as off and nothing captures. `PASSAGE_ENABLED` is checked first and bypasses Airflow entirely |
+## Found by running it in Airflow, and fixed
 
-Each of these degrades to something harmless rather than raising, which is
-deliberate: a tracing tool that breaks the pipeline it is observing has failed
-at its job.
+Both were silent. The DAG went green and captured nothing, which is the worst
+shape a bug of this kind can take.
+
+| Defect | Why no test caught it |
+| --- | --- |
+| **`run_type` never matched.** `dag_run.run_type` is a `DagRunType` enum inside a live task, and `str()` on it yields `"DagRunType.MANUAL"`, not `"manual"`, so switch 3 refused every run. Fixed in `throughline/runtime.py` by unwrapping the enum. | Importing `DagRunType` outside a task and stringifying it gives `"manual"`. The behaviour only differs on the live Task SDK object, so it is not reproducible off-scheduler |
+| **The global switch could never be turned on.** `airflow.sdk.Variable` only works inside a running task; at DAG-parse time it raises `ImportError` on `SUPERVISOR_COMMS`, which the bare `except` turned into "off". Setting the Variable did nothing at all. Fixed in `throughline/config.py` by trying the metadata-DB accessor first. | The tests set `THROUGHLINE_ENABLED`, which is checked before Airflow is consulted, so they never exercised the Variable path |
+
+## Assumptions that have now been settled
+
+Every assumption previously listed here has been checked against a live 3.1.
+One was wrong.
+
+| Former assumption | Outcome |
+| --- | --- |
+| `context["dag_run"].bundle_version` is how a task reads its bundle version | **Wrong.** The attribute is absent under the `dags-folder` bundle, so versions record as `unknown` and the diff view falls back to labelling by run. It degrades exactly as designed — no run was harmed — but the attribute should not be relied on |
+| TaskFlow renders `{{ params.throughline_scope }}` in arguments | **Correct**, shown above |
+| `dag_run.conf` overrides a declared `param` of the same name | **Correct**, shown above |
+| `@task` applied above `@throughline.trace` executes the wrapper in the worker | **Correct**, shown above |
+| `Variable.get` works at DAG-parse time in 3.1 | **Wrong for the Task SDK accessor**, and the cause of the second defect above. The metadata-DB accessor does work at parse time |
+
+## Found by running four DAGs at once, and fixed
+
+| Defect | What happened |
+| --- | --- |
+| **A concurrent DAG died on the warehouse lock.** DuckDB takes an exclusive write lock per file, and under a LocalExecutor every task is its own process. Four DAGs triggered together raced, and the loser raised `IO Error: Could not set lock on file` rather than waiting. | `throughline/store.py` already retried lock conflicts for the capture store, but the task's own warehouse connection did not. The retry now lives in `throughline/locking.py` and both use it. It waits out lock conflicts only — a permission error or bad SQL still fails immediately |
+
+## Environment requirements found the hard way
+
+- **`throughline/` is baked into the image, not bind-mounted.** `astro dev`
+  mounts `dags/`, `include/`, `plugins/` and `tests/`; a change to the plugin
+  package itself needs `astro dev restart` before the containers see it. This
+  is worth knowing because the failure is silent in the worst way: the
+  containers keep running the previous version of the capture code, so tasks
+  succeed and capture nothing. It cost an hour once already.
+- **The bind-mounted DuckDB files must be writable by uid 50000.** The Astro
+  containers run as `astro` (uid 50000); a file created on the host by an
+  ordinary user is mode 644 and uid 1000, so the first task dies with
+  `IO Error: ... Permission denied`. `include/scratch/` needs the same, or
+  replay fails once it tries to create its scratch database. A `chown` in the
+  Dockerfile does not help, because these are bind mounts rather than image
+  content. `chmod -R a+rwX include` before `astro dev start` is the blunt fix.
+
+## Still not verified
+
+- **Anything beyond local `astro dev`.** No remote executor, no Astro
+  deployment, no Kubernetes. Replay in particular runs in the API server
+  process, which is a different proposition under a real deployment.
+- **Wide parallel fan-out within one DAG.** Four *DAGs* in parallel is now
+  covered (see above), and the lock retry in `throughline/locking.py` is what
+  makes it work. What is still untested is many parallel tasks inside a single
+  DAG, where contention is heavier than four writers.
+- **`bundle_version` against real DAG bundle versioning.** Only the
+  `dags-folder` bundle was exercised, which supplies no version at all.
+- **Page rendering has no automated guard.** All four pages were confirmed by
+  hand today, but nothing in `tests/`, `tools/check_demo.py` or CI asserts they
+  render, so a broken template would still reach the camera silently.
 
 ## Known limitations
 
 - **Plugin endpoints are not auth-protected.** Airflow 3.1 does not
   authenticate `fastapi_apps` routes by default and this project does not add
-  it. Anyone who can reach the API server can read captured values and trigger
-  a replay. Fine for a demo; not fine for production without a proxy in front.
+  it. Confirmed directly: an unauthenticated request reads captured values and
+  can trigger a replay. Fine for a demo; not fine for production without a
+  proxy in front.
 - **DuckDB only.** Tables are attached by file path and replay isolation uses
   `ATTACH ... (READ_ONLY)`. The equivalent on a real warehouse is a read-only
   role, described in the README, but no other warehouse is implemented.
 - **Replay runs in the API server process**, not through the scheduler. That is
   what makes it take seconds, and it is why a DAG has to register its replay
-  plan in `include/passage_replays.py`.
+  plan in `include/throughline_replays.py`.
 - **The capture store is a single DuckDB file.** DuckDB takes an exclusive
   write lock per file, so concurrent tasks briefly contend. Writes are short and
   retried; a DAG with wide parallel fan-out would want Postgres instead.

@@ -4,23 +4,23 @@ The task bodies live here rather than in the DAG file so that they can be run,
 and traced, without an Airflow scheduler — see ``tools/local_run.py``. The DAG
 file binds them to Airflow and does nothing else.
 
-Adoption, in full, is the ``@passage.trace`` line above each function and the
+Adoption, in full, is the ``@throughline.trace`` line above each function and the
 ``{scope}`` placeholder in the two queries that read source tables. Nothing
-else about these functions is written for Passage: they take their input, do
+else about these functions is written for Throughline: they take their input, do
 their work, write their output and return a handle, exactly as they would have.
 """
 
 from __future__ import annotations
 
-import passage
-from passage import session
-from passage.table import Table, qualified
+import throughline
+from throughline import session
+from throughline.table import Table, qualified
 
 
-@passage.trace(key="order_id", replay_safe=True)
-def extract(scope: str = passage.scope.ALL) -> Table:
+@throughline.trace(key="order_id", replay_safe=True)
+def extract(scope: str = throughline.scope.ALL) -> Table:
     """Pull the six fields the pipeline cares about out of the orders table."""
-    predicate = passage.scope.resolve(scope)
+    predicate = throughline.scope.resolve(scope)
     target = session.write_target()
     con = session.connect()
     try:
@@ -37,7 +37,7 @@ def extract(scope: str = passage.scope.ALL) -> Table:
     return Table("orders_extracted", target)
 
 
-@passage.trace(key="order_id", replay_safe=True)
+@throughline.trace(key="order_id", replay_safe=True)
 def normalize(orders: Table) -> Table:
     """Rename two fields into house style, convert cents to dollars, drop sku."""
     target = session.write_target()
@@ -60,7 +60,7 @@ def normalize(orders: Table) -> Table:
     return Table("orders_normalized", target)
 
 
-@passage.trace(key="order_id", replay_safe=True)
+@throughline.trace(key="order_id", replay_safe=True)
 def apply_promo(orders: Table) -> Table:
     """Attach each customer's active promotion.
 
@@ -104,7 +104,7 @@ def apply_promo(orders: Table) -> Table:
     return Table("orders_promo", target)
 
 
-@passage.trace(key="order_id", replay_safe=True)
+@throughline.trace(key="order_id", replay_safe=True)
 def compute_total(orders: Table) -> Table:
     """Derive the line total after discount."""
     target = session.write_target()

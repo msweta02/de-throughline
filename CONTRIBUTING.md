@@ -38,10 +38,10 @@ listed rather than left to review:
   fan-out, which is the entire demo.
 - **Capture never raises into the task.** A tracing tool that breaks the
   pipeline it observes has failed at its job. Snapshot failures log and swallow.
-- **`@passage.trace` goes below `@task`.** The reverse runs at parse time.
+- **`@throughline.trace` goes below `@task`.** The reverse runs at parse time.
 - **Captured data never goes through XCom.**
-- **Passage writes only to `include/passage.duckdb`.** Its observer connection
-  attaches the warehouse `READ_ONLY`.
+- **Throughline writes only to `include/throughline.duckdb`.** Its observer
+  connection attaches the warehouse `READ_ONLY`.
 - **Replay stays refused by default.** Tasks opt in with `replay_safe=True`.
 
 `tools/check_demo.py` guards the numbers quoted in the README. If you change
@@ -50,8 +50,9 @@ same commit.
 
 ## Airflow-facing changes
 
-Read [VERIFY.md](VERIFY.md) first. Nothing here has run inside an Airflow
-scheduler yet, and `passage/runtime.py` is deliberately the only module that
-touches Airflow, so that a wrong guess about 3.1 is a one-file fix. Keep it
-that way: if you need a new piece of Airflow context, add an accessor there
-with a fallback rather than importing Airflow somewhere new.
+Read [VERIFY.md](VERIFY.md) first, and re-run the demo path in `astro dev`
+rather than trusting the tests — the two defects found on 22 Sept were both
+invisible off-scheduler. `throughline/runtime.py` is deliberately the only
+module that touches Airflow, so that a wrong guess about 3.1 is a one-file fix.
+Keep it that way: if you need a new piece of Airflow context, add an accessor
+there with a fallback rather than importing Airflow somewhere new.

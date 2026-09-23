@@ -2,7 +2,7 @@
 
 A task hands downstream a pointer to a warehouse relation, not its rows. That
 keeps XCom small — XCom is for control flow, never for captured data — while
-still giving ``@passage.trace`` something it can turn into rows on both sides
+still giving ``@throughline.trace`` something it can turn into rows on both sides
 of the task boundary.
 
 ``Table`` subclasses ``dict`` on purpose. Whatever XCom serializer is in play,
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-MARKER = "__passage_table__"
+MARKER = "__throughline_table__"
 
 #: Attached catalog names. Task SQL is written against these, so the same SQL
 #: runs in a normal run and in a replay with different things underneath.

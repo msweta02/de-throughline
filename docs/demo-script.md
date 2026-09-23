@@ -11,7 +11,7 @@ repo, not a mock.
 ```bash
 python3 tools/seed_warehouse.py
 python3 tools/local_run.py --run-id nightly_2026_09_15 --bundle-version bundle-v1
-astro dev start                       # then Browse -> Passage
+astro dev start                       # then Browse -> Throughline
 ```
 
 The nightly run captures 100 records with the default cap, which is what an
@@ -37,8 +37,8 @@ create one on camera.
    Point out that none of that came from documentation, and none of it came
    from reading the SQL.
 
-4. One line on adoption, on screen: `@passage.trace(key="order_id")` above the
-   task. That is all that was added to this DAG.
+4. One line on adoption, on screen: `@throughline.trace(key="order_id")` above
+   the task. That is all that was added to this DAG.
 
 ---
 
@@ -115,9 +115,21 @@ all three broken records without being told which to look for:
 5000 records captured, 3 with more rows out than in
 ```
 
+Or, if the question in the room is *does this only work on your toy DAG*:
+open `tickets_join_every_step` — a support desk, not orders, keyed on
+`ticket_id`, written as if by another team. Ticket 500004 reads
+`1 -> 1 -> 2 -> 2` because it was reassigned and has two events: the same
+signature as the bug, and here it is correct. Say that out loud — the tool
+shows the fan-out and names the task; deciding whether it is a defect is
+still yours.
+
+If there is time for one more sentence: ticket 88231 carries the same number
+as the hero order, on purpose. Two systems reusing an id space is ordinary,
+and the two traces share nothing but the number.
+
 ## Do not show
 
 - The `task_policy` zero-edit path — it is documented, not built. Claiming it on
   camera would be a lie.
-- Anything implying this has run inside a real Airflow scheduler until it has.
-  See `VERIFY.md`.
+- Anything beyond local `astro dev` — no remote executor or real deployment
+  has been exercised. See `VERIFY.md`.

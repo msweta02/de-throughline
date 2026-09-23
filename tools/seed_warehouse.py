@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from passage import paths, session  # noqa: E402
+from throughline import paths, session  # noqa: E402
 
 SEED = Path(__file__).resolve().parent.parent / "include" / "sql" / "seed.sql"
 

@@ -11,7 +11,7 @@ things worth more than the storage:
 rows — that is the entire point of the fan-out case — so anything keyed only by
 ``record_key`` would collapse exactly the evidence the tool exists to show.
 
-The store is its own DuckDB file. Passage writes here and nowhere else.
+The store is its own DuckDB file. Throughline writes here and nowhere else.
 """
 
 from __future__ import annotations
@@ -21,12 +21,12 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from passage import paths, runtime
-from passage import snapshot as snapshot_mod
+from throughline import locking, paths, runtime
+from throughline import snapshot as snapshot_mod
 
-# The capture *file* is already Passage's, so the schema inside it is named for
-# what it holds. Calling it "passage" would collide with DuckDB's catalog name
-# for passage.duckdb and make every reference ambiguous.
+# The capture *file* is already Throughline's, so the schema inside it is named for
+# what it holds. Calling it "throughline" would collide with DuckDB's catalog name
+# for throughline.duckdb and make every reference ambiguous.
 SCHEMA = "capture"
 
 _CAPTURES_DDL = f"""
@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS {SCHEMA}.captures (
     task_id         VARCHAR,
     direction       VARCHAR,   -- 'in' | 'out'
     record_key      VARCHAR,
+    record_key_field VARCHAR,  -- the column record_key was read from, e.g. 'order_id'
     row_ordinal     INTEGER,
     field_name      VARCHAR,
     value           VARCHAR,
@@ -59,18 +60,19 @@ CREATE TABLE IF NOT EXISTS {SCHEMA}.replays (
 );
 """
 
-#: DuckDB holds an exclusive write lock per file. Tasks in the same DAG run are
-#: separate processes under LocalExecutor, so a brief collision is possible even
-#: in a linear DAG. Connections are held for the length of one insert and
-#: retried, which is cheaper than standing up a second database for captures.
-_LOCK_RETRIES = 12
-_LOCK_BACKOFF = 0.25
 
+def _migrate(con: Any) -> None:
+    """Bring a store written by an older version up to the current schema.
 
-def _is_lock_conflict(exc: Exception) -> bool:
-    """Whether an exception is another process holding the write lock."""
-    text = str(exc).lower()
-    return "lock" in text or "being used by another" in text or "conflict" in text
+    Only additive changes belong here. A capture store is rebuildable, so this
+    exists to spare a running demo rather than to guarantee anything.
+    """
+    try:
+        con.execute(
+            f"ALTER TABLE {SCHEMA}.captures ADD COLUMN IF NOT EXISTS record_key_field VARCHAR"
+        )
+    except Exception:  # pragma: no cover - older DuckDB without IF NOT EXISTS
+        pass
 
 
 def connect(read_only: bool = False) -> Any:
@@ -81,20 +83,21 @@ def connect(read_only: bool = False) -> Any:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     last: Exception | None = None
-    for attempt in range(_LOCK_RETRIES):
+    for attempt in range(locking.RETRIES):
         try:
             con = duckdb.connect(str(path), read_only=read_only and path.exists())
             if not read_only:
                 con.execute(_CAPTURES_DDL)
+                _migrate(con)
             return con
         except Exception as exc:
             # Only lock contention is worth waiting out. Retrying a schema or
             # permission error just hides it behind twenty seconds of backoff.
-            if not _is_lock_conflict(exc):
+            if not locking.is_lock_conflict(exc):
                 raise
             last = exc
-            time.sleep(_LOCK_BACKOFF * (attempt + 1))
-    raise RuntimeError(f"could not open the Passage capture store at {path}") from last
+            time.sleep(locking.BACKOFF * (attempt + 1))
+    raise RuntimeError(f"could not open the Throughline capture store at {path}") from last
 
 
 def record(
@@ -119,6 +122,7 @@ def record(
             rt.task_id,
             direction,
             record_key,
+            key,
             ordinal,
             field_name,
             value,
@@ -135,6 +139,25 @@ def record(
     return len(payload)
 
 
+#: Written explicitly on every insert. A store created fresh and one migrated
+#: with ALTER TABLE have different physical column orders, so positional
+#: inserts would silently write values into the wrong columns.
+_COLUMN_NAMES = (
+    "capture_id",
+    "dag_id",
+    "run_id",
+    "bundle_version",
+    "task_id",
+    "direction",
+    "record_key",
+    "record_key_field",
+    "row_ordinal",
+    "field_name",
+    "value",
+    "captured_at",
+)
+_COLUMNS = ", ".join(_COLUMN_NAMES)
+
 #: Rows per INSERT statement on the fast path.
 _CHUNK = 5000
 
@@ -144,7 +167,7 @@ def _literal(value: Any) -> str:
 
     Doubling single quotes is the complete escape for a DuckDB string literal,
     and NUL is stripped because a varchar cannot hold one. Everything written
-    here is already text from :func:`passage.snapshot.to_text`.
+    here is already text from :func:`throughline.snapshot.to_text`.
     """
     if value is None:
         return "NULL"
@@ -160,7 +183,7 @@ def _insert(con: Any, payload: list[tuple]) -> None:
 
     Literals are inlined rather than bound as parameters because DuckDB binds
     them one at a time: 45,000 cells takes 60 seconds through ``executemany``
-    and under a second this way. The capture store is Passage's own private
+    and under a second this way. The capture store is Throughline's own private
     database and every value has already been stringified, but the escaping
     above is still exact — and if it ever is not, the parameterised path below
     runs instead, after a rollback so nothing lands twice.
@@ -172,11 +195,14 @@ def _insert(con: Any, payload: list[tuple]) -> None:
             values = ",".join(
                 "(" + ",".join(_literal(value) for value in row) + ")" for row in chunk
             )
-            con.execute(f"INSERT INTO {SCHEMA}.captures VALUES {values}")
+            con.execute(f"INSERT INTO {SCHEMA}.captures ({_COLUMNS}) VALUES {values}")
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
-        con.executemany(f"INSERT INTO {SCHEMA}.captures VALUES (?,?,?,?,?,?,?,?,?,?,?)", payload)
+        placeholders = ",".join("?" * len(_COLUMN_NAMES))
+        con.executemany(
+            f"INSERT INTO {SCHEMA}.captures ({_COLUMNS}) VALUES ({placeholders})", payload
+        )
 
 
 def _rows(con: Any, sql: str, params: list | None = None) -> list[dict]:
@@ -206,8 +232,48 @@ def list_traces(limit: int = 50) -> list[dict]:
         con.close()
 
 
-def list_records(dag_id: str, run_id: str, limit: int = 200) -> list[dict]:
-    """The records captured in a run, with the row count each ended up at."""
+def key_field(dag_id: str, run_id: str) -> str | None:
+    """The column this run's records are keyed by, e.g. ``order_id``.
+
+    Read from the captures rather than the DAG, so the page can name the real
+    column without importing anything Airflow-shaped. ``None`` when the tasks
+    were traced without a key, in which case there is nothing to filter on.
+    """
+    con = connect(read_only=True)
+    try:
+        rows = _rows(
+            con,
+            f"""
+            SELECT record_key_field, count(*) AS n
+            FROM {SCHEMA}.captures
+            WHERE dag_id = ? AND run_id = ? AND record_key_field IS NOT NULL
+            GROUP BY record_key_field
+            ORDER BY n DESC
+            LIMIT 1
+            """,
+            [dag_id, run_id],
+        )
+        return rows[0]["record_key_field"] if rows else None
+    finally:
+        con.close()
+
+
+def list_records(
+    dag_id: str, run_id: str, limit: int = 200, contains: str | None = None
+) -> list[dict]:
+    """The records captured in a run, with the row count each ended up at.
+
+    ``contains`` filters on the record key as a case-insensitive substring, so
+    a run capped at 100 records is still navigable by typing part of an id.
+    Filtering happens in SQL rather than in the page, so the limit applies to
+    the matches rather than truncating before the filter runs.
+    """
+    clause = ""
+    params: list = [dag_id, run_id]
+    if contains:
+        clause = "AND contains(lower(record_key), lower(?))"
+        params.append(contains)
+
     con = connect(read_only=True)
     try:
         return _rows(
@@ -217,16 +283,17 @@ def list_records(dag_id: str, run_id: str, limit: int = 200) -> list[dict]:
                 SELECT record_key, task_id, max(row_ordinal) + 1 AS rows
                 FROM {SCHEMA}.captures
                 WHERE dag_id = ? AND run_id = ? AND direction = 'out'
+                  AND record_key IS NOT NULL
+                  {clause}
                 GROUP BY record_key, task_id
             )
             SELECT record_key, max(rows) AS max_rows, min(rows) AS min_rows
             FROM final
-            WHERE record_key IS NOT NULL
             GROUP BY record_key
             ORDER BY max_rows DESC, record_key
             LIMIT {int(limit)}
             """,
-            [dag_id, run_id],
+            params,
         )
     finally:
         con.close()

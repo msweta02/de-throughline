@@ -19,37 +19,37 @@ sys.path.insert(0, str(ROOT))
 
 @pytest.fixture()
 def capture_home(tmp_path, monkeypatch):
-    """Point Passage at a throwaway store, with tracing on."""
-    monkeypatch.setenv("PASSAGE_HOME", str(tmp_path))
-    monkeypatch.setenv("PASSAGE_ENABLED", "1")
+    """Point Throughline at a throwaway store, with tracing on."""
+    monkeypatch.setenv("THROUGHLINE_HOME", str(tmp_path))
+    monkeypatch.setenv("THROUGHLINE_ENABLED", "1")
     yield tmp_path
 
 
 def test_global_switch_off_leaves_no_wrapper(monkeypatch):
     """Off means the function is handed back untouched, not wrapped in a no-op."""
-    monkeypatch.setenv("PASSAGE_ENABLED", "0")
-    from passage import tracing
+    monkeypatch.setenv("THROUGHLINE_ENABLED", "0")
+    from throughline import tracing
 
     def step(rows):
         return rows
 
     decorated = tracing.trace(key="order_id")(step)
     assert decorated is step
-    assert not hasattr(decorated, "__passage__")
+    assert not hasattr(decorated, "__throughline__")
 
 
 def test_global_switch_on_wraps(monkeypatch):
-    monkeypatch.setenv("PASSAGE_ENABLED", "1")
-    from passage import tracing
+    monkeypatch.setenv("THROUGHLINE_ENABLED", "1")
+    from throughline import tracing
 
     decorated = tracing.trace(key="order_id", replay_safe=True)(lambda rows: rows)
-    assert decorated.__passage__["replay_safe"] is True
+    assert decorated.__throughline__["replay_safe"] is True
 
 
 def test_decorator_applied_above_task_is_rejected(monkeypatch):
-    """@passage.trace above @task would run at parse time. That must be loud."""
-    monkeypatch.setenv("PASSAGE_ENABLED", "1")
-    from passage import errors, tracing
+    """@throughline.trace above @task would run at parse time. That must be loud."""
+    monkeypatch.setenv("THROUGHLINE_ENABLED", "1")
+    from throughline import errors, tracing
 
     class FakeAirflowTask:
         def override(self): ...
@@ -60,7 +60,7 @@ def test_decorator_applied_above_task_is_rejected(monkeypatch):
 
 
 def test_scheduled_runs_capture_nothing_by_default():
-    from passage import config
+    from throughline import config
 
     assert config.run_enabled("scheduled", {}) is False
     assert config.run_enabled("manual", {}) is True
@@ -70,7 +70,7 @@ def test_scheduled_runs_capture_nothing_by_default():
 
 def test_fan_out_is_recorded_as_two_ordinals(capture_home):
     """One record key, two rows. Collapsing these would hide the whole bug."""
-    from passage import runtime, snapshot, store
+    from throughline import runtime, snapshot, store
 
     run_id = f"test__{uuid.uuid4().hex[:8]}"
     rt = runtime.Runtime("d", run_id, "apply_promo", "v1", "manual", {})
@@ -86,7 +86,7 @@ def test_fan_out_is_recorded_as_two_ordinals(capture_home):
 
 def test_sampling_caps_by_record_not_by_row(capture_home):
     """A capped snapshot must still bring every row of the records it keeps."""
-    from passage import snapshot
+    from throughline import snapshot
 
     rows = [{"order_id": 1, "n": 1}, {"order_id": 1, "n": 2}, {"order_id": 2, "n": 3}]
     kept = snapshot.take(rows, key="order_id", sample=1).rows
@@ -95,7 +95,7 @@ def test_sampling_caps_by_record_not_by_row(capture_home):
 
 def test_trace_returns_the_task_result_untouched(capture_home):
     """Capture is an observation. It must not alter what the task returns."""
-    from passage import tracing
+    from throughline import tracing
 
     sentinel = [{"order_id": 7, "a": 1}]
     traced = tracing.trace(key="order_id")(lambda rows: rows)
@@ -103,7 +103,7 @@ def test_trace_returns_the_task_result_untouched(capture_home):
 
 
 def test_replay_refuses_tasks_that_are_not_marked_safe(capture_home):
-    from passage import errors, registry, replay
+    from throughline import errors, registry, replay
 
     registry.register_replay("unsafe_dag", [("t1", lambda _: None, "previous")])
     assert replay.preflight("unsafe_dag")
@@ -113,7 +113,7 @@ def test_replay_refuses_tasks_that_are_not_marked_safe(capture_home):
 
 def test_hostile_values_survive_the_fast_insert_path(capture_home):
     """Captured values are inlined as SQL literals, so escaping has to be exact."""
-    from passage import runtime, snapshot, store
+    from throughline import runtime, snapshot, store
 
     hostile = "'); DROP TABLE capture.captures; --"
     run_id = f"test__{uuid.uuid4().hex[:8]}"
@@ -133,9 +133,9 @@ def test_hostile_values_survive_the_fast_insert_path(capture_home):
 
 def test_a_malformed_sample_setting_does_not_break_the_task(monkeypatch):
     """Capture reads config inside the task, so bad config must not raise there."""
-    from passage import config
+    from throughline import config
 
-    monkeypatch.setenv("PASSAGE_SAMPLE_RECORDS", "not-a-number")
+    monkeypatch.setenv("THROUGHLINE_SAMPLE_RECORDS", "not-a-number")
     assert config.sample_records({}) == config.DEFAULT_SAMPLE_RECORDS
     assert config.sample_records({"sample": "nonsense"}) == config.DEFAULT_SAMPLE_RECORDS
     assert config.sample_records({"sample": "all"}) is None

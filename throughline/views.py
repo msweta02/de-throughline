@@ -1,6 +1,6 @@
 """The pages, as plain functions returning HTML.
 
-Kept apart from the FastAPI binding in :mod:`passage.api` so the views can be
+Kept apart from the FastAPI binding in :mod:`throughline.api` so the views can be
 rendered and checked without a web server — and without FastAPI, which only
 exists inside the Airflow image.
 """
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from passage import grid, render, store
+from throughline import grid, render, store
 
 
 def index(base: str, default_bundle: str = "current") -> str:
@@ -22,8 +22,9 @@ def index(base: str, default_bundle: str = "current") -> str:
     )
 
 
-def records(base: str, dag_id: str, run_id: str) -> str:
-    rows = store.list_records(dag_id, run_id)
+def records(base: str, dag_id: str, run_id: str, q: str | None = None) -> str:
+    q = (q or "").strip()
+    rows = store.list_records(dag_id, run_id, contains=q or None)
     return render.page(
         "records.html",
         base=base,
@@ -31,6 +32,9 @@ def records(base: str, dag_id: str, run_id: str) -> str:
         run_id=run_id,
         records=rows,
         fanned=[r for r in rows if (r["max_rows"] or 1) > 1],
+        key_field=store.key_field(dag_id, run_id),
+        q=q,
+        total=store.count_records(dag_id, run_id),
     )
 
 
