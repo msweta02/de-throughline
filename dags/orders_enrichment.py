@@ -44,6 +44,15 @@ DOC = __doc__
             title="Throughline scope",
             description="SQL predicate narrowing the source query. 'true' means every row.",
         ),
+        # Rendered as a checkbox in Airflow's own Trigger dialog. Params only
+        # reach dag_run.conf when a run is triggered with them, so leaving this
+        # alone keeps scheduled runs silent exactly as before.
+        "throughline_trace": Param(
+            True,
+            type="boolean",
+            title="Trace this run with Throughline",
+            description="Capture this run's records. Untick to run the DAG without tracing.",
+        ),
     },
 )
 def orders_enrichment() -> None:

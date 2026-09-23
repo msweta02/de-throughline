@@ -22,6 +22,22 @@ def index(base: str, default_bundle: str = "current") -> str:
     )
 
 
+def dag(base: str, dag_id: str, default_bundle: str = "current") -> str:
+    """The index, narrowed to one DAG.
+
+    This is what the Throughline tab on Airflow's own DAG page renders. It is
+    the same page as the index minus the noise: you arrived from a DAG, so
+    every other DAG's runs are the wrong thing to show.
+    """
+    return render.page(
+        "dag.html",
+        base=base,
+        dag_id=dag_id,
+        traces=store.list_traces(dag_id=dag_id),
+        default_bundle=default_bundle,
+    )
+
+
 def records(base: str, dag_id: str, run_id: str, q: str | None = None) -> str:
     q = (q or "").strip()
     rows = store.list_records(dag_id, run_id, contains=q or None)

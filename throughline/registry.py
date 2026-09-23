@@ -45,6 +45,36 @@ def register_replay(dag_id: str, steps: list[tuple]) -> None:
     _PLANS[dag_id] = [Step(*s) for s in steps]
 
 
+#: Which run types a given DAG captures. Absent means "use the defaults".
+_POLICIES: dict[str, frozenset[str]] = {}
+
+
+def trace_policy(dag_id: str, run_types: set[str] | frozenset[str]) -> None:
+    """Declare which run types capture for ``dag_id``.
+
+    The per-run switches are the right tool for one run, and the deployment
+    environment variable is the right tool for a fleet, but neither answers
+    "this DAG records its automatic runs and that one does not". This does,
+    in one line per DAG:
+
+        throughline.trace_policy("orders_enrichment", {"manual", "scheduled"})
+
+    Airflow 3.1's run types are ``manual``, ``scheduled``, ``backfill`` and
+    ``asset_triggered``. A DAG that says nothing keeps the defaults, so this
+    is additive: no existing DAG changes behaviour by its introduction.
+
+    An explicit answer still outranks it — an unticked Trigger checkbox or
+    ``{"throughline": {"trace": false}}`` turns a run off whatever the policy
+    says, because a policy is a default and those are instructions.
+    """
+    _POLICIES[dag_id] = frozenset(t.lower() for t in run_types)
+
+
+def policy(dag_id: str | None) -> frozenset[str] | None:
+    """The run types ``dag_id`` captures, or ``None`` if it never said."""
+    return _POLICIES.get(dag_id) if dag_id else None
+
+
 def plan(dag_id: str) -> list[Step]:
     return list(_PLANS.get(dag_id, []))
 

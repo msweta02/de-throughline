@@ -57,6 +57,20 @@ Astro Runtime 3.1-1, local `astro dev start`, 22–23 Sept 2026.
 | A trace never mixes DAGs | `ticket_id = 88231` is seeded to collide with the hero `order_id = 88231`. Replayed in both pipelines, each grid shows only its own tasks and fields, and `runs_for_record` returned no foreign-DAG rows |
 | The record list names its real key column | the header reads `order_id`, read from the captures rather than configured |
 | Filtering the record list works | `?q=83245` returned *1 of 100 records*; a non-matching filter says so rather than rendering an empty table |
+| Throughline appears as a tab on Airflow's own DAG page | `destination: "dag"` puts it after *Details* at `/dags/<dag_id>/plugin/throughline-dag`; confirmed visually in the browser, not only by API |
+| The DAG tab shows one DAG's runs | each of the four DAGs' tabs listed only its own runs; an unknown dag_id gets the empty-state panel rather than an error |
+| Links inside the DAG tab navigate | clicking a run opens its record list inside the frame, with the DAG header and tabs still visible |
+| The global switch genuinely stops capture | with `throughline_enabled=false` **and a restart**, a normal manual run captured 0 cells; with it true and a restart, 4,500 |
+| The global switch is not live | changing the Variable without restarting had no effect in either direction — off-without-restart still captured 4,500, on-without-restart still captured 0 |
+| The Trigger-dialog checkbox switches capture per run | Airflow reports `throughline_trace` as a boolean param; unticked captured 0 cells, ticked 4,500, and no conf at all still followed the manual-run default of 4,500 — all without a restart |
+| Scheduled runs capture nothing, even with the checkbox defaulting to ticked | a DAG on a one-minute schedule declaring `throughline_trace: Param(True)` produced two scheduled runs, both with `conf = {}` and **0 cells**; a manual trigger of the same DAG captured immediately. Param defaults are not written into a scheduled run's conf |
+| `THROUGHLINE_TRACE_SCHEDULED` opts scheduled runs in | with it set and the containers restarted, a scheduled run of the same probe DAG captured; unset again, back to nothing |
+| `trace_policy` opts one DAG's scheduled runs in, per DAG | two one-minute-schedule DAGs side by side with no environment variable set: the one declaring `trace_policy({"manual","scheduled"})` captured 8 cells over 2 scheduled runs, the control declaring nothing captured 0 |
+| A nine-task DAG renders and scrolls | nine shape cards and ten table columns rendered; both the shape strip and the values table carry `overflow-x: auto`, and the field column is sticky so row labels survive scrolling right |
+| Tracing does not touch the pipeline's own output | every warehouse table fingerprinted after a traced and an untraced run — 20 tables, identical row counts, columns and contents, no table or column added |
+| Replay scopes on any SQL predicate | verified with a key equality, a non-key column, `IN (...)`, `BETWEEN`, and a two-column string predicate; the multi-record scopes captured every record and all were reachable from the replay's record list |
+| A malformed scope fails loudly | `this is not sql` raised a parse error naming the predicate, and `wh.orders` was unchanged |
+| The cost of tracing is known, not guessed | 0.36 s untraced against 1.38 s traced over the same work — about +1 s per 4,500 cells, ~14 bytes per cell on disk, a 2.4 ms Variable read per DAG parse, and literally nothing when the switch is off (`decorated is step`) |
 
 ## Found by running it in Airflow, and fixed
 
@@ -86,6 +100,18 @@ One was wrong.
 | Defect | What happened |
 | --- | --- |
 | **A concurrent DAG died on the warehouse lock.** DuckDB takes an exclusive write lock per file, and under a LocalExecutor every task is its own process. Four DAGs triggered together raced, and the loser raised `IO Error: Could not set lock on file` rather than waiting. | `throughline/store.py` already retried lock conflicts for the capture store, but the task's own warehouse connection did not. The retry now lives in `throughline/locking.py` and both use it. It waits out lock conflicts only — a permission error or bad SQL still fails immediately |
+
+## Found by clicking it, after the server said it was fine
+
+| Defect | What happened |
+| --- | --- |
+| **Every link on the DAG tab did nothing.** They carried `target="_top"`, added so that opening a run would escape the iframe rather than nest Throughline inside itself. Airflow frames plugin pages with `sandbox="allow-scripts allow-same-origin allow-forms"`, which omits `allow-top-navigation`, so the browser refuses the navigation and reports nothing at all. | Every server-side check passed: the route returned 200, the HTML was correct, the plugin API advertised the view. Only a click showed it. The sandbox is hardcoded in Airflow's `ExternalView`, so the capability cannot be requested — links now navigate inside the frame, which keeps the DAG header and tab row visible anyway |
+
+## Found by trying to switch it off
+
+| Defect | What happened |
+| --- | --- |
+| **Turning the global switch off did nothing on a running Airflow.** Two consecutive runs captured 4,500 cells each with `throughline_enabled=false`. Not a lag: the second was 90 seconds later. | Not a bug in the switch so much as an undocumented consequence of its design. `@throughline.trace` is applied at *import*, and `include/orders_enrichment/steps.py` is imported early by the plugin's replay-plan module, so a long-lived process holds the already-decorated functions in `sys.modules`. A probe showed the contradiction directly: at parse time `enabled=False` while `wrapped=True`, and `importlib.reload` flipped it to `False`. Restarting applies the change in both directions. The README now says so |
 
 ## Environment requirements found the hard way
 
@@ -120,6 +146,11 @@ One was wrong.
 
 ## Known limitations
 
+- **A broad scope replays the whole table.** `scope` is a raw SQL predicate
+  with no width guard, so `1=1` re-executes every record — 5,000 on the demo
+  warehouse. Production stays read-only throughout, so this costs time and
+  capture-store space rather than data, but on an unauthenticated endpoint it
+  is worth knowing.
 - **Plugin endpoints are not auth-protected.** Airflow 3.1 does not
   authenticate `fastapi_apps` routes by default and this project does not add
   it. Confirmed directly: an unauthenticated request reads captured values and

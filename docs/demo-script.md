@@ -11,7 +11,7 @@ repo, not a mock.
 ```bash
 python3 tools/seed_warehouse.py
 python3 tools/local_run.py --run-id nightly_2026_09_15 --bundle-version bundle-v1
-astro dev start                       # then Browse -> Throughline
+astro dev start
 ```
 
 The nightly run captures 100 records with the default cap, which is what an
@@ -25,11 +25,15 @@ create one on camera.
 > "You've inherited `orders_enrichment`. Four tasks, no docs. What does it
 > actually do?"
 
-1. **Open the trace for one ordinary order** from last night's run. No replay,
+1. **Start on the DAG's own page**, `orders_enrichment`, and click the
+   **Throughline** tab — last in the row, after *Details*. Worth one sentence
+   on camera: this is not a separate tool you go somewhere else to use, it is
+   a tab on the DAG you were already looking at.
+2. **Open the trace for one ordinary order** from last night's run. No replay,
    no setup — the run already captured it.
-2. **Read the grid.** Fields down the side, tasks across the top, the record's
+3. **Read the grid.** Fields down the side, tasks across the top, the record's
    values in the cells.
-3. **Read the shape strip out loud.** This is the beat that matters:
+4. **Read the shape strip out loud.** This is the beat that matters:
 
    > "extract pulls six fields. normalize renames two and drops one.
    > apply_promo adds a discount. compute_total derives the line total."
@@ -37,7 +41,7 @@ create one on camera.
    Point out that none of that came from documentation, and none of it came
    from reading the SQL.
 
-4. One line on adoption, on screen: `@throughline.trace(key="order_id")` above
+5. One line on adoption, on screen: `@throughline.trace(key="order_id")` above
    the task. That is all that was added to this DAG.
 
 ---
@@ -46,10 +50,10 @@ create one on camera.
 
 > "Now an order that came out wrong."
 
-5. **Paste the scope**, `order_id = 88231`, pick bundle `bundle-v1`, hit
+6. **Paste the scope**, `order_id = 88231`, pick bundle `bundle-v1`, hit
    replay. It returns in seconds.
 
-6. **The hero shot.** Same grid the viewer already knows how to read, but the
+7. **The hero shot.** Same grid the viewer already knows how to read, but the
    row count breaks:
 
    ```
@@ -57,14 +61,14 @@ create one on camera.
                  ^ apply_promo
    ```
 
-7. **Click `apply_promo`.** Two promotion windows overlapped, the join fanned
+8. **Click `apply_promo`.** Two promotion windows overlapped, the join fanned
    out, and `compute_total` summed both discounts: 15% + 20% = 35%, giving a
    line total of **65.00**.
 
    Say the quiet part: no exception, no null, no schema change. This row passes
    every data-quality check that is not specifically looking for a duplicate key.
 
-8. **The winning shot.** Replay the same record against `bundle-v2`:
+9. **The winning shot.** Replay the same record against `bundle-v2`:
 
    ```
    1  ->  1  ->  1  ->  1        line_total 80.00
@@ -81,7 +85,7 @@ create one on camera.
 
 ## The 15 seconds that wins over anyone who runs real pipelines (2:40 – 2:55)
 
-9. **Try to write to production during a replay.**
+10. **Try to write to production during a replay.**
 
    ```bash
    python3 tools/prove_isolation.py

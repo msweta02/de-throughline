@@ -11,7 +11,12 @@
   .step.break .rows { color: var(--warn); font-weight: 700; }
   .deltas { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
   .grid td, .grid th { border-bottom: 1px solid var(--line); }
-  .grid .field { font-weight: 600; white-space: nowrap; }
+  /* Sticky so the field name survives scrolling right. A DAG with nine tasks
+     is wider than the panel, and a grid you cannot read the row labels of is
+     not a grid. Needs its own background or the values show through. */
+  .grid .field { font-weight: 600; white-space: nowrap;
+                 position: sticky; left: 0; z-index: 1;
+                 background: var(--panel); }
   .grid .val { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
   .grid .changed { background: var(--add-bg); }
   .grid .absent { color: var(--muted); }

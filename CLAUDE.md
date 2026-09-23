@@ -11,6 +11,12 @@ broken 100%. If a change does not make one of the demo beats in
 ## Read first
 
 - `README.md` — what it is and how it works.
+- `TESTING.md` — every scenario, the command, the expected result, and the
+  sentence worth saying about it. Start here before a demo.
+- `docs/data-flow.md` — `orders_enrichment` end to end: which table each task
+  writes, where each snapshot is read from, and what replay changes.
+- `ROADMAP.md` — what is deliberately not built, including how a dbt
+  integration would fit.
 - `VERIFY.md` — **what has actually been executed and what has not.** The demo
   path now runs inside a real Airflow 3.1 scheduler; what is still untested is
   everything beyond local `astro dev`. Check it before trusting any
@@ -32,19 +38,35 @@ broken 100%. If a change does not make one of the demo beats in
 | `include/support_desk/steps.py` | task bodies for the three join DAGs, a non-orders domain |
 | `dags/tickets_join_*.py` | the join DAGs — first-step, every-step, after-single |
 | `throughline/locking.py` | waiting out DuckDB's one-writer-per-file lock |
+| `throughline/registry.py` | replay plans, and per-DAG `trace_policy` |
+| `throughline/templates/dag.html` | the per-DAG page framed by Airflow's DAG tab |
+| `plugins/throughline_plugin.py` | two external views: the nav entry and the DAG tab |
 
 ## Invariants — do not break these
 
 - **The global switch removes the wrapper**, it does not short-circuit inside
   one. `tests/test_throughline.py` asserts object identity. If that test starts
-  asserting behaviour instead, the guarantee has been quietly lost.
+  asserting behaviour instead, the guarantee has been quietly lost. The cost of
+  that design is that the switch is **not live**: the decorator is applied at
+  import, a long-lived scheduler caches the module, so changing the Variable
+  needs an Airflow restart. Measured, not assumed.
 - **`row_ordinal` counts within a record key.** Collapsing it hides the fan-out,
   which is the whole demo.
 - **Capture never raises into the task.** Snapshot failures log and swallow.
 - **`@throughline.trace` goes below `@task`.** The reverse runs at parse time.
+- **Runs nobody asked for capture nothing unless asked.** That is `scheduled`
+  and `asset_triggered`; the default set is `{manual, backfill}`.
+  `throughline.trace_policy(dag_id, run_types)` opts a single DAG in and
+  `THROUGHLINE_TRACE_SCHEDULED` opts the fleet in. Both defaults must stay off. Param defaults are not written into a
+  scheduled run's conf, which is what keeps the Trigger checkbox from quietly
+  switching every nightly run on — verified, and worth re-verifying if the
+  params change.
 - **Never put captured data in XCom.**
 - **Throughline writes only to `include/throughline.duckdb`.** Its observer
   connection attaches the warehouse `READ_ONLY`.
+- **No `target="_top"` in `throughline/templates/dag.html`.** Airflow frames
+  it with a sandbox that omits `allow-top-navigation`, so such a link
+  silently does nothing when clicked while every server-side check passes.
 
 ## Local workflow
 
@@ -68,5 +90,11 @@ is live. Getting this wrong looks like a capture that silently stops working.
 Generic SQL rewriting or AST manipulation. The `task_policy` zero-edit path
 (document it, do not build it). Warehouses other than DuckDB. React UI. Auth on
 the endpoints. Anything OpenLineage — this is record-level and concrete, which
-is precisely what lineage tools do not give you. Multi-record replay. Tests
-beyond the sanity checks.
+is precisely what lineage tools do not give you. Tests beyond the sanity
+checks.
+
+Multi-record replay used to be listed here and is not a non-goal any more: a
+scope is a SQL predicate, so `order_id IN (...)` or a `BETWEEN` already
+replays several records and every one of them is browsable. Nothing was built
+for it; it falls out of the design. What is still missing is a guard — a
+predicate like `1=1` replays the whole table.
