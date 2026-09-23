@@ -143,7 +143,14 @@ defaulting to **off**:
 | --- | --- | --- |
 | Global | `throughline_enabled` Airflow Variable, read at parse time | off |
 | Per task | whether the decorator is applied at all | — |
-| Per run | `dag_run.conf` | scheduled runs off, manual runs and replays on |
+| Per run | a checkbox in Airflow's Trigger dialog, or `dag_run.conf` | scheduled runs off, manual runs and replays on |
+
+The per-run switch is the one to reach for, because it needs no restart. A DAG
+that declares the `throughline_trace` Param gets a **Trace this run with
+Throughline** checkbox in Airflow's own Trigger dialog; untick it and that run
+executes normally and records nothing. The programmatic form is
+`{"throughline": {"trace": true}}` in the run conf, which outranks the
+checkbox, and a replay always captures whatever the box says.
 
 The global switch matters most, and it is not an early `return` inside a
 wrapper. When it is off, the decorator hands back the **undecorated function**:

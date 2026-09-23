@@ -62,6 +62,7 @@ Astro Runtime 3.1-1, local `astro dev start`, 22–23 Sept 2026.
 | Links inside the DAG tab navigate | clicking a run opens its record list inside the frame, with the DAG header and tabs still visible |
 | The global switch genuinely stops capture | with `throughline_enabled=false` **and a restart**, a normal manual run captured 0 cells; with it true and a restart, 4,500 |
 | The global switch is not live | changing the Variable without restarting had no effect in either direction — off-without-restart still captured 4,500, on-without-restart still captured 0 |
+| The Trigger-dialog checkbox switches capture per run | Airflow reports `throughline_trace` as a boolean param; unticked captured 0 cells, ticked 4,500, and no conf at all still followed the manual-run default of 4,500 — all without a restart |
 
 ## Found by running it in Airflow, and fixed
 

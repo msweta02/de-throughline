@@ -131,7 +131,7 @@ def trace(
                 )
 
             # Switch 3, at run time.
-            if not config.run_enabled(rt.run_type, rt.throughline_conf):
+            if not config.run_enabled(rt.run_type, rt.throughline_conf, rt.conf):
                 return target(*args, **kwargs)
 
             sample = config.sample_records(rt.throughline_conf)

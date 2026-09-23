@@ -68,6 +68,26 @@ def test_scheduled_runs_capture_nothing_by_default():
     assert config.run_enabled("manual", {"trace": False}) is False
 
 
+def test_the_trigger_checkbox_decides_when_nothing_else_has():
+    """The ``throughline_trace`` Param, as Airflow's Trigger dialog sends it."""
+    from throughline import config
+
+    # Unticked turns a manual run off; ticked turns a scheduled one on.
+    assert config.run_enabled("manual", {}, {"throughline_trace": False}) is False
+    assert config.run_enabled("scheduled", {}, {"throughline_trace": True}) is True
+
+    # An empty conf is not an answer, so the run-type default still governs.
+    assert config.run_enabled("scheduled", {}, {}) is False
+    assert config.run_enabled("manual", {}, {}) is True
+
+    # The nested block is the explicit API and outranks the checkbox.
+    assert config.run_enabled("manual", {"trace": True}, {"throughline_trace": False}) is True
+
+    # A replay captures whatever the box says, because an unticked box must not
+    # be able to produce a replay that recorded nothing.
+    assert config.run_enabled("manual", {"replay": True}, {"throughline_trace": False}) is True
+
+
 def test_fan_out_is_recorded_as_two_ordinals(capture_home):
     """One record key, two rows. Collapsing these would hide the whole bug."""
     from throughline import runtime, snapshot, store
