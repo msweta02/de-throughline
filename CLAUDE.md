@@ -32,6 +32,8 @@ broken 100%. If a change does not make one of the demo beats in
 | `include/support_desk/steps.py` | task bodies for the three join DAGs, a non-orders domain |
 | `dags/tickets_join_*.py` | the join DAGs — first-step, every-step, after-single |
 | `throughline/locking.py` | waiting out DuckDB's one-writer-per-file lock |
+| `throughline/templates/dag.html` | the per-DAG page framed by Airflow's DAG tab |
+| `plugins/throughline_plugin.py` | two external views: the nav entry and the DAG tab |
 
 ## Invariants — do not break these
 
@@ -45,6 +47,9 @@ broken 100%. If a change does not make one of the demo beats in
 - **Never put captured data in XCom.**
 - **Throughline writes only to `include/throughline.duckdb`.** Its observer
   connection attaches the warehouse `READ_ONLY`.
+- **No `target="_top"` in `throughline/templates/dag.html`.** Airflow frames
+  it with a sandbox that omits `allow-top-navigation`, so such a link
+  silently does nothing when clicked while every server-side check passes.
 
 ## Local workflow
 

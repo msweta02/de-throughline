@@ -57,6 +57,9 @@ Astro Runtime 3.1-1, local `astro dev start`, 22–23 Sept 2026.
 | A trace never mixes DAGs | `ticket_id = 88231` is seeded to collide with the hero `order_id = 88231`. Replayed in both pipelines, each grid shows only its own tasks and fields, and `runs_for_record` returned no foreign-DAG rows |
 | The record list names its real key column | the header reads `order_id`, read from the captures rather than configured |
 | Filtering the record list works | `?q=83245` returned *1 of 100 records*; a non-matching filter says so rather than rendering an empty table |
+| Throughline appears as a tab on Airflow's own DAG page | `destination: "dag"` puts it after *Details* at `/dags/<dag_id>/plugin/throughline-dag`; confirmed visually in the browser, not only by API |
+| The DAG tab shows one DAG's runs | each of the four DAGs' tabs listed only its own runs; an unknown dag_id gets the empty-state panel rather than an error |
+| Links inside the DAG tab navigate | clicking a run opens its record list inside the frame, with the DAG header and tabs still visible |
 
 ## Found by running it in Airflow, and fixed
 
@@ -86,6 +89,12 @@ One was wrong.
 | Defect | What happened |
 | --- | --- |
 | **A concurrent DAG died on the warehouse lock.** DuckDB takes an exclusive write lock per file, and under a LocalExecutor every task is its own process. Four DAGs triggered together raced, and the loser raised `IO Error: Could not set lock on file` rather than waiting. | `throughline/store.py` already retried lock conflicts for the capture store, but the task's own warehouse connection did not. The retry now lives in `throughline/locking.py` and both use it. It waits out lock conflicts only — a permission error or bad SQL still fails immediately |
+
+## Found by clicking it, after the server said it was fine
+
+| Defect | What happened |
+| --- | --- |
+| **Every link on the DAG tab did nothing.** They carried `target="_top"`, added so that opening a run would escape the iframe rather than nest Throughline inside itself. Airflow frames plugin pages with `sandbox="allow-scripts allow-same-origin allow-forms"`, which omits `allow-top-navigation`, so the browser refuses the navigation and reports nothing at all. | Every server-side check passed: the route returned 200, the HTML was correct, the plugin API advertised the view. Only a click showed it. The sandbox is hardcoded in Airflow's `ExternalView`, so the capability cannot be requested — links now navigate inside the frame, which keeps the DAG header and tab row visible anyway |
 
 ## Environment requirements found the hard way
 

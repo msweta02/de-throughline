@@ -50,6 +50,16 @@ same commit.
 
 ## Airflow-facing changes
 
+**`astro dev` bind-mounts `dags/`, `include/`, `plugins/` and `tests/` only.**
+`throughline/` is baked into the image, so a change to the plugin package
+needs `astro dev restart` before the containers see it. Skip it and the
+containers keep running the previous capture code: tasks go green and nothing
+is captured.
+
+And when the change is to a page, click it. Airflow frames plugin pages in a
+sandboxed iframe, and a link it refuses to follow looks identical to a working
+one from `curl`.
+
 Read [VERIFY.md](VERIFY.md) first, and re-run the demo path in `astro dev`
 rather than trusting the tests — the two defects found on 22 Sept were both
 invisible off-scheduler. `throughline/runtime.py` is deliberately the only

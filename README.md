@@ -75,7 +75,18 @@ astro dev start
 ```
 
 then set the `throughline_enabled` Airflow Variable (`airflow_settings.yaml`
-already does), trigger `orders_enrichment`, and open **Browse → Throughline**.
+already does) and trigger `orders_enrichment`.
+
+Two ways in, and the first is the one you will actually use:
+
+- **The DAG's own page.** Open the DAG and click the **Throughline** tab, last
+  in the row after *Details*. It lists that DAG's traced runs and nothing
+  else, because you arrived from a DAG and every other DAG's runs are noise.
+- **Browse → Throughline** for the index across every DAG.
+
+Airflow renders the tab in a sandboxed iframe, so links inside it navigate
+within the frame and the DAG header and tabs stay visible while you drill from
+run to record to grid.
 
 ## Adoption: this has to work on DAGs you did not write
 
