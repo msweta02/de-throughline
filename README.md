@@ -306,7 +306,10 @@ The rest of the bill:
 When Throughline traces a scheduled run, the DAG writes to its real tables
 exactly as it always does. Throughline reads them and writes only to its own
 capture database — a separate DuckDB file, not a schema alongside the
-pipeline's output. Its own connection attaches the warehouse `READ_ONLY`, so it
+pipeline's output. Measured rather than asserted: fingerprinting every
+warehouse table after a traced run and an untraced one gives identical row
+counts, identical columns and identical contents, with no table and no column
+added. Its own connection attaches the warehouse `READ_ONLY`, so it
 cannot write there even by accident, and does not contend for the write lock
 the task is using.
 
@@ -546,7 +549,9 @@ docs/         the demo script the video follows
 ```
 
 Contributing notes and the invariants worth not breaking are in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+[CONTRIBUTING.md](CONTRIBUTING.md). [TESTING.md](TESTING.md) walks every
+scenario with its expected result; [ROADMAP.md](ROADMAP.md) covers what is not
+built and why, including what a dbt integration would take.
 
 ## License
 

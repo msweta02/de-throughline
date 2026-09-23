@@ -11,6 +11,10 @@ broken 100%. If a change does not make one of the demo beats in
 ## Read first
 
 - `README.md` — what it is and how it works.
+- `TESTING.md` — every scenario, the command, the expected result, and the
+  sentence worth saying about it. Start here before a demo.
+- `ROADMAP.md` — what is deliberately not built, including how a dbt
+  integration would fit.
 - `VERIFY.md` — **what has actually been executed and what has not.** The demo
   path now runs inside a real Airflow 3.1 scheduler; what is still untested is
   everything beyond local `astro dev`. Check it before trusting any
