@@ -251,6 +251,37 @@ That works because capture writes are bulk-inserted as escaped literals rather
 than bound one parameter at a time — the difference between about a second and
 about a minute per 45,000 cells.
 
+## What it costs
+
+Measured on the demo pipeline, four tasks over 5,000 DuckDB orders:
+
+| | Wall clock | Captured |
+| --- | --- | --- |
+| Tracing off | 0.36 s | — |
+| Traced, default 100-record cap | 1.38 s | 4,500 cells |
+| Traced, every record | 16.0 s | 225,000 cells |
+
+So roughly **+1 second per 4,500 cells**, and about **14 bytes per cell** on
+disk — a traced run of the demo DAG adds ~60 KB to the capture store.
+
+Read the first row carefully before the multiplier alarms you. These tasks do
+almost nothing: four `CREATE TABLE`s over 5,000 rows in an embedded database.
+Capture costs what it costs *per record*, not as a share of your runtime, so on
+a pipeline whose tasks take minutes it disappears into the noise, and on this
+one it looks like a 4× slowdown. Judge it by the absolute number.
+
+The rest of the bill:
+
+- **Off costs nothing at all.** The decorator hands back the original function
+  object, so there is no wrapper in the call path — `decorated is step`.
+- **One Airflow Variable read per DAG parse**, measured at **2.4 ms**, and only
+  when `THROUGHLINE_ENABLED` is unset. With it set the check is 0.001 ms and
+  never touches the database.
+- **No extra process or port.** `fastapi_apps` mounts the app inside the
+  existing API server, and FastAPI already ships with Airflow.
+- **One more DuckDB file.** The capture store takes an exclusive write lock per
+  write, which is why writes are short and retried — see `throughline/locking.py`.
+
 ## Tracing a normal run changes nothing
 
 When Throughline traces a scheduled run, the DAG writes to its real tables
