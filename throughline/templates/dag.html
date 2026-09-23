@@ -7,13 +7,21 @@
 <h1>{{ dag_id }}</h1>
 <div class="sub">Traced runs of this DAG. Pick one, then pick a record.</div>
 
+{#
+  No target="_top" on these links. Airflow frames this page with
+  sandbox="allow-scripts allow-same-origin allow-forms", which omits
+  allow-top-navigation, so a _top link is blocked by the browser and does
+  nothing at all when clicked. Navigating inside the frame keeps the DAG page
+  and its tabs visible, which is the better behaviour here anyway.
+#}
+
 <div class="panel" style="padding:0">
 {% if traces %}
 <table>
   <tr><th>run</th><th>bundle</th><th>tasks</th><th>records</th><th>captured</th></tr>
   {% for t in traces %}
   <tr>
-    <td><a class="mono" href="{{ base }}/runs/{{ t.dag_id }}/{{ t.run_id }}" target="_top">{{ t.run_id }}</a></td>
+    <td><a class="mono" href="{{ base }}/runs/{{ t.dag_id }}/{{ t.run_id }}">{{ t.run_id }}</a></td>
     <td><span class="pill">{{ t.bundle_version }}</span></td>
     <td>{{ t.tasks }}</td>
     <td>{{ t.records }}</td>
@@ -32,6 +40,6 @@
 </div>
 
 <p class="sub" style="margin-top:18px">
-  <a href="{{ base }}/" target="_top">all DAGs &rarr;</a>
+  <a href="{{ base }}/">all DAGs &rarr;</a>
 </p>
 {% endblock %}
