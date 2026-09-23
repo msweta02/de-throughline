@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from throughline import scope
 from throughline.errors import DecoratorOrderError, ReplayRefused, ThroughlineError
-from throughline.registry import register_replay
+from throughline.registry import register_replay, trace_policy
 from throughline.table import Table, is_table, qualified
 from throughline.tracing import trace
 
@@ -28,6 +28,7 @@ __all__ = [
     "is_table",
     "qualified",
     "register_replay",
+    "trace_policy",
     "scope",
     "trace",
 ]

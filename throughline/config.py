@@ -81,10 +81,14 @@ def _read_switch() -> object | None:
 #: run's conf stays empty and the run-type default below still governs it.
 TRACE_PARAM = "throughline_trace"
 
-#: Run types that capture when nothing else has decided. Scheduled runs are
-#: absent on purpose: a scheduled production run is where an unasked-for side
-#: effect is least welcome, and somebody has to have asked for it.
-_TRACED_RUN_TYPES = frozenset({"manual", "manual_triggered", "backfill"})
+#: Run types that capture when nothing else has decided. Airflow 3.1 has
+#: exactly four: manual, scheduled, backfill and asset_triggered.
+#:
+#: The two absentees are absent on purpose. A scheduled run is where an
+#: unasked-for side effect is least welcome, and an asset-triggered run is
+#: automatic for the same reason — neither was asked for by a person. Both can
+#: be opted in per DAG with ``throughline.trace_policy``.
+_TRACED_RUN_TYPES = frozenset({"manual", "backfill"})
 
 #: Opt in to tracing scheduled runs too. Off unless set, and an environment
 #: variable rather than an Airflow Variable because this is read *inside every
@@ -99,7 +103,12 @@ def _traced_run_types() -> frozenset[str]:
     return _TRACED_RUN_TYPES
 
 
-def run_enabled(run_type: str, throughline_conf: dict, conf: dict | None = None) -> bool:
+def run_enabled(
+    run_type: str,
+    throughline_conf: dict,
+    conf: dict | None = None,
+    dag_id: str | None = None,
+) -> bool:
     """Switch 3, evaluated inside the task.
 
     Four ways to decide, most explicit first:
@@ -111,9 +120,12 @@ def run_enabled(run_type: str, throughline_conf: dict, conf: dict | None = None)
     3. ``throughline_trace`` at the top level of ``dag_run.conf``, which is
        where Airflow puts the checkbox from the Trigger dialog when a DAG
        declares the matching ``Param``.
-    4. Otherwise: manual runs capture and scheduled runs do not, because a
-       scheduled production run is exactly the place where an unasked-for
-       side effect is least welcome.
+    4. A per-DAG policy declared with ``throughline.trace_policy``, which is
+       how one DAG records its automatic runs while another does not.
+    5. Otherwise: manual and backfill runs capture; scheduled and
+       asset-triggered runs do not, because a run nobody asked for is exactly
+       the place where an unasked-for side effect is least welcome.
+       ``THROUGHLINE_TRACE_SCHEDULED`` widens that last default fleet-wide.
 
     The checkbox sits below the replay check on purpose. A replay carries no
     params, but if one ever did, an unticked box must not be able to turn a
@@ -125,6 +137,12 @@ def run_enabled(run_type: str, throughline_conf: dict, conf: dict | None = None)
         return True
     if conf and TRACE_PARAM in conf:
         return _as_bool(conf[TRACE_PARAM])
+
+    from throughline import registry
+
+    declared = registry.policy(dag_id)
+    if declared is not None:
+        return run_type.lower() in declared
     return run_type.lower() in _traced_run_types()
 
 

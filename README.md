@@ -154,18 +154,34 @@ checkbox, and a replay always captures whatever the box says.
 
 Which leaves, for any given run:
 
-| Trigger | Captures? |
-| --- | --- |
-| **Scheduled** | **No** — the deliberate default |
-| Manual, from the UI or the CLI | Yes |
-| Manual with the checkbox unticked | No |
-| Backfill | **Yes** — you asked for the rerun |
-| Replay | Always |
+| Run type | Produced by | Captures? |
+| --- | --- | --- |
+| `manual` | ▶ Trigger, the CLI, the API | **Yes** |
+| `backfill` | `airflow backfill` | **Yes** — you asked for the rerun |
+| `scheduled` | the cron schedule | No |
+| `asset_triggered` | an upstream asset updating | No |
+| — | a replay | Always |
 
-Backfill being in that list is worth knowing before you backfill a wide date
-range: untick the box, or pass `{"throughline": {"trace": false}}`.
+Airflow 3.1 has exactly those four run types; "triggered" is `manual`, not a
+separate kind. The two that do not capture are the two nobody asked for.
+Backfill being in the *yes* column is worth knowing before backfilling a wide
+date range: untick the box, or pass `{"throughline": {"trace": false}}`.
 
-### Tracing scheduled runs anyway
+### Tracing automatic runs
+
+Per DAG, which is usually what you want — one pipeline records its nightly
+runs, another does not:
+
+```python
+throughline.trace_policy("orders_enrichment", {"manual", "scheduled"})
+```
+
+One line, next to `register_replay`. A DAG that says nothing keeps the
+defaults, so adding this changes no existing DAG. Note the declared set is
+**exhaustive**: the example above stops backfills of that DAG capturing,
+because it lists the run types that capture and `backfill` is not among them.
+
+Fleet-wide, if every DAG should trace its scheduled runs:
 
 Scheduled runs stay silent because a scheduled production run is the worst
 place for an unasked-for side effect, not because tracing them is wrong. A
@@ -177,9 +193,12 @@ THROUGHLINE_TRACE_SCHEDULED=1
 
 An environment variable rather than an Airflow Variable, because this is read
 *inside every task* and a metadata-database round trip per task would be a
-real cost. It is a default, not an override: an unticked checkbox or an
-explicit `{"throughline": {"trace": false}}` still wins. Like the global
-switch, the containers have to restart before they see it.
+real cost. Like the global switch, the containers have to restart before they
+see it.
+
+Both are defaults, and an explicit answer outranks either: an unticked
+checkbox or `{"throughline": {"trace": false}}` turns a run off whatever the
+policy says.
 
 The global switch matters most, and it is not an early `return` inside a
 wrapper. When it is off, the decorator hands back the **undecorated function**:

@@ -32,6 +32,7 @@ broken 100%. If a change does not make one of the demo beats in
 | `include/support_desk/steps.py` | task bodies for the three join DAGs, a non-orders domain |
 | `dags/tickets_join_*.py` | the join DAGs — first-step, every-step, after-single |
 | `throughline/locking.py` | waiting out DuckDB's one-writer-per-file lock |
+| `throughline/registry.py` | replay plans, and per-DAG `trace_policy` |
 | `throughline/templates/dag.html` | the per-DAG page framed by Airflow's DAG tab |
 | `plugins/throughline_plugin.py` | two external views: the nav entry and the DAG tab |
 
@@ -47,8 +48,10 @@ broken 100%. If a change does not make one of the demo beats in
   which is the whole demo.
 - **Capture never raises into the task.** Snapshot failures log and swallow.
 - **`@throughline.trace` goes below `@task`.** The reverse runs at parse time.
-- **Scheduled runs capture nothing unless asked.** `THROUGHLINE_TRACE_SCHEDULED`
-  opts in; the default must stay off. Param defaults are not written into a
+- **Runs nobody asked for capture nothing unless asked.** That is `scheduled`
+  and `asset_triggered`; the default set is `{manual, backfill}`.
+  `throughline.trace_policy(dag_id, run_types)` opts a single DAG in and
+  `THROUGHLINE_TRACE_SCHEDULED` opts the fleet in. Both defaults must stay off. Param defaults are not written into a
   scheduled run's conf, which is what keeps the Trigger checkbox from quietly
   switching every nightly run on — verified, and worth re-verifying if the
   params change.

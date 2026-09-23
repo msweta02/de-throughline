@@ -65,6 +65,7 @@ Astro Runtime 3.1-1, local `astro dev start`, 22–23 Sept 2026.
 | The Trigger-dialog checkbox switches capture per run | Airflow reports `throughline_trace` as a boolean param; unticked captured 0 cells, ticked 4,500, and no conf at all still followed the manual-run default of 4,500 — all without a restart |
 | Scheduled runs capture nothing, even with the checkbox defaulting to ticked | a DAG on a one-minute schedule declaring `throughline_trace: Param(True)` produced two scheduled runs, both with `conf = {}` and **0 cells**; a manual trigger of the same DAG captured immediately. Param defaults are not written into a scheduled run's conf |
 | `THROUGHLINE_TRACE_SCHEDULED` opts scheduled runs in | with it set and the containers restarted, a scheduled run of the same probe DAG captured; unset again, back to nothing |
+| `trace_policy` opts one DAG's scheduled runs in, per DAG | two one-minute-schedule DAGs side by side with no environment variable set: the one declaring `trace_policy({"manual","scheduled"})` captured 8 cells over 2 scheduled runs, the control declaring nothing captured 0 |
 
 ## Found by running it in Airflow, and fixed
 

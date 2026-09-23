@@ -104,6 +104,42 @@ def test_scheduled_runs_can_be_opted_in(monkeypatch):
     assert config.run_enabled("scheduled", {}) is False
 
 
+def test_a_dag_can_declare_which_run_types_capture():
+    """``trace_policy`` is how one DAG records its automatic runs and another does not."""
+    from throughline import config, registry
+
+    registry._POLICIES.clear()
+    try:
+        # Says nothing: the defaults govern.
+        assert config.run_enabled("scheduled", {}, None, "quiet_dag") is False
+        assert config.run_enabled("manual", {}, None, "quiet_dag") is True
+
+        registry.trace_policy("noisy_dag", {"manual", "scheduled"})
+        assert config.run_enabled("scheduled", {}, None, "noisy_dag") is True
+        assert config.run_enabled("manual", {}, None, "noisy_dag") is True
+        # Declared sets are exhaustive, so backfill is now out for this DAG.
+        assert config.run_enabled("backfill", {}, None, "noisy_dag") is False
+
+        # One DAG's policy must not leak into another's.
+        assert config.run_enabled("scheduled", {}, None, "quiet_dag") is False
+
+        # A policy is a default; an explicit answer still outranks it.
+        assert config.run_enabled("scheduled", {"trace": False}, None, "noisy_dag") is False
+        assert (
+            config.run_enabled("scheduled", {}, {"throughline_trace": False}, "noisy_dag") is False
+        )
+    finally:
+        registry._POLICIES.clear()
+
+
+def test_asset_triggered_runs_do_not_capture_by_default():
+    """Airflow 3.1's fourth run type. Automatic, so silent unless asked for."""
+    from throughline import config
+
+    assert config.run_enabled("asset_triggered", {}) is False
+    assert config.run_enabled("asset_triggered", {"trace": True}) is True
+
+
 def test_fan_out_is_recorded_as_two_ordinals(capture_home):
     """One record key, two rows. Collapsing these would hide the whole bug."""
     from throughline import runtime, snapshot, store
