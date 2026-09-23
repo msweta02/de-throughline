@@ -115,6 +115,13 @@ all three broken records without being told which to look for:
 5000 records captured, 3 with more rows out than in
 ```
 
+Or, if the question in the room is *does this only work on your toy DAG*: open
+`orders_join_every_step`, which joins three tables in sequence. Order 83245
+reads `1 -> 1 -> 2 -> 2` because it shipped in two parcels — the same
+signature as the bug, and here it is correct. Say that out loud: the tool
+shows the fan-out and names the task; deciding whether it is a defect is still
+yours.
+
 ## Do not show
 
 - The `task_policy` zero-edit path — it is documented, not built. Claiming it on

@@ -42,3 +42,49 @@ INSERT INTO wh.promotions VALUES
     (900001, 1204, 'LOYALTY-20', 20, DATE '2026-09-01', DATE '2026-09-30'),
     (900002, 3877, 'LOYALTY-20', 20, DATE '2026-09-01', DATE '2026-09-30'),
     (900003, 5000, 'LOYALTY-20', 20, DATE '2026-09-01', DATE '2026-09-30');
+
+-- ---------------------------------------------------------------------------
+-- Reference tables for the join DAGs.
+--
+-- The orders_enrichment DAG is deliberately a single-source pipeline, because
+-- act one of the demo has to teach the grid before it teaches anything else.
+-- These three tables exist so the join DAGs have something real to join to,
+-- and so the shape strip has something other than a promotion fan-out to show.
+
+CREATE OR REPLACE TABLE wh.customers AS
+SELECT
+    i                                                       AS customer_id,
+    'Customer ' || lpad(i::VARCHAR, 4, '0')                 AS customer_name,
+    ['EMEA','AMER','APAC'][1 + (i % 3)]                     AS region,
+    ['standard','plus','enterprise'][1 + (i % 3)]           AS tier,
+    DATE '2024-01-01' + INTERVAL (i % 900) DAY              AS signed_up_on
+FROM range(1, 5001) t(i);
+
+-- One row per SKU used by wh.orders, so this join never changes the row count.
+CREATE OR REPLACE TABLE wh.products AS
+SELECT * FROM (VALUES
+    ('SKU-ALPHA',  'Alpha Widget',  'widgets',     900),
+    ('SKU-BRAVO',  'Bravo Bracket', 'brackets',   1750),
+    ('SKU-CIRRUS', 'Cirrus Clamp',  'clamps',     4200),
+    ('SKU-DELTA',  'Delta Driver',  'drivers',     650),
+    ('SKU-ECHO',   'Echo Enclosure','enclosures', 12500)
+) AS p(sku, product_name, category, list_price_cents);
+
+-- One shipment per order, except for four orders that shipped in two parcels.
+-- A split shipment is an entirely legitimate row, which is the point: joining
+-- to it fans the record out exactly the way the promotions bug does, without
+-- anything being wrong with either table.
+CREATE OR REPLACE TABLE wh.shipments AS
+SELECT
+    700000 + i                                              AS shipment_id,
+    83231 + i                                               AS order_id,
+    ['UPS','DHL','FEDEX'][1 + (i % 3)]                      AS carrier,
+    DATE '2026-09-05' + INTERVAL (i % 20) DAY               AS shipped_on,
+    'delivered'                                             AS status
+FROM range(1, 5001) t(i);
+
+INSERT INTO wh.shipments VALUES
+    (790001, 83245, 'DHL',   DATE '2026-09-13', 'delivered'),
+    (790002, 84500, 'UPS',   DATE '2026-09-16', 'delivered'),
+    (790003, 86000, 'FEDEX', DATE '2026-09-18', 'delivered'),
+    (790004, 87777, 'UPS',   DATE '2026-09-19', 'delivered');

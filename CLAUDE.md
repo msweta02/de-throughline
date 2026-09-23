@@ -1,8 +1,8 @@
 # Throughline — working notes
 
 An Airflow 3.1 plugin that traces one record through a DAG. Built for the
-Astronomer *Beyond the Dag* hackathon (Plugin Powerhouse category, deadline
-**24 Sept 2026**). Solo build, evenings.
+Astronomer *Beyond the Dag* hackathon (Plugin Powerhouse category). Submissions
+are due **24 Sept 2026, 11:59pm ET**. Solo build, evenings.
 
 **The deadline is the hardest constraint here.** A working 70% demo beats a
 broken 100%. If a change does not make one of the demo beats in
@@ -29,6 +29,8 @@ broken 100%. If a change does not make one of the demo beats in
 | `throughline/api.py` | thin FastAPI binding |
 | `include/orders_enrichment/steps.py` | the real task bodies, runnable without Airflow |
 | `dags/orders_enrichment.py` | binding only, no logic |
+| `include/orders_joins/steps.py` | task bodies for the three join DAGs |
+| `dags/orders_join_*.py` | the join DAGs — first-step, every-step, after-single |
 
 ## Invariants — do not break these
 
@@ -54,6 +56,11 @@ python3 -m pytest tests/ -q && python3 -m ruff check .
 ```
 
 `include/*.duckdb` is gitignored and rebuildable; deleting it is always safe.
+
+**`astro dev` bind-mounts `dags/`, `include/`, `plugins/` and `tests/` only.**
+`throughline/` is baked into the image, so a change to the plugin package needs
+`astro dev restart` before the containers see it. Editing a DAG or a step body
+is live. Getting this wrong looks like a capture that silently stops working.
 
 ## Non-goals
 

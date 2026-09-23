@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS {SCHEMA}.captures (
     task_id         VARCHAR,
     direction       VARCHAR,   -- 'in' | 'out'
     record_key      VARCHAR,
+    record_key_field VARCHAR,  -- the column record_key was read from, e.g. 'order_id'
     row_ordinal     INTEGER,
     field_name      VARCHAR,
     value           VARCHAR,
@@ -73,6 +74,20 @@ def _is_lock_conflict(exc: Exception) -> bool:
     return "lock" in text or "being used by another" in text or "conflict" in text
 
 
+def _migrate(con: Any) -> None:
+    """Bring a store written by an older version up to the current schema.
+
+    Only additive changes belong here. A capture store is rebuildable, so this
+    exists to spare a running demo rather than to guarantee anything.
+    """
+    try:
+        con.execute(
+            f"ALTER TABLE {SCHEMA}.captures ADD COLUMN IF NOT EXISTS record_key_field VARCHAR"
+        )
+    except Exception:  # pragma: no cover - older DuckDB without IF NOT EXISTS
+        pass
+
+
 def connect(read_only: bool = False) -> Any:
     """Open the capture store, creating it on first use."""
     import duckdb
@@ -86,6 +101,7 @@ def connect(read_only: bool = False) -> Any:
             con = duckdb.connect(str(path), read_only=read_only and path.exists())
             if not read_only:
                 con.execute(_CAPTURES_DDL)
+                _migrate(con)
             return con
         except Exception as exc:
             # Only lock contention is worth waiting out. Retrying a schema or
@@ -119,6 +135,7 @@ def record(
             rt.task_id,
             direction,
             record_key,
+            key,
             ordinal,
             field_name,
             value,
@@ -134,6 +151,25 @@ def record(
         con.close()
     return len(payload)
 
+
+#: Written explicitly on every insert. A store created fresh and one migrated
+#: with ALTER TABLE have different physical column orders, so positional
+#: inserts would silently write values into the wrong columns.
+_COLUMN_NAMES = (
+    "capture_id",
+    "dag_id",
+    "run_id",
+    "bundle_version",
+    "task_id",
+    "direction",
+    "record_key",
+    "record_key_field",
+    "row_ordinal",
+    "field_name",
+    "value",
+    "captured_at",
+)
+_COLUMNS = ", ".join(_COLUMN_NAMES)
 
 #: Rows per INSERT statement on the fast path.
 _CHUNK = 5000
@@ -172,11 +208,14 @@ def _insert(con: Any, payload: list[tuple]) -> None:
             values = ",".join(
                 "(" + ",".join(_literal(value) for value in row) + ")" for row in chunk
             )
-            con.execute(f"INSERT INTO {SCHEMA}.captures VALUES {values}")
+            con.execute(f"INSERT INTO {SCHEMA}.captures ({_COLUMNS}) VALUES {values}")
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
-        con.executemany(f"INSERT INTO {SCHEMA}.captures VALUES (?,?,?,?,?,?,?,?,?,?,?)", payload)
+        placeholders = ",".join("?" * len(_COLUMN_NAMES))
+        con.executemany(
+            f"INSERT INTO {SCHEMA}.captures ({_COLUMNS}) VALUES ({placeholders})", payload
+        )
 
 
 def _rows(con: Any, sql: str, params: list | None = None) -> list[dict]:
@@ -206,8 +245,48 @@ def list_traces(limit: int = 50) -> list[dict]:
         con.close()
 
 
-def list_records(dag_id: str, run_id: str, limit: int = 200) -> list[dict]:
-    """The records captured in a run, with the row count each ended up at."""
+def key_field(dag_id: str, run_id: str) -> str | None:
+    """The column this run's records are keyed by, e.g. ``order_id``.
+
+    Read from the captures rather than the DAG, so the page can name the real
+    column without importing anything Airflow-shaped. ``None`` when the tasks
+    were traced without a key, in which case there is nothing to filter on.
+    """
+    con = connect(read_only=True)
+    try:
+        rows = _rows(
+            con,
+            f"""
+            SELECT record_key_field, count(*) AS n
+            FROM {SCHEMA}.captures
+            WHERE dag_id = ? AND run_id = ? AND record_key_field IS NOT NULL
+            GROUP BY record_key_field
+            ORDER BY n DESC
+            LIMIT 1
+            """,
+            [dag_id, run_id],
+        )
+        return rows[0]["record_key_field"] if rows else None
+    finally:
+        con.close()
+
+
+def list_records(
+    dag_id: str, run_id: str, limit: int = 200, contains: str | None = None
+) -> list[dict]:
+    """The records captured in a run, with the row count each ended up at.
+
+    ``contains`` filters on the record key as a case-insensitive substring, so
+    a run capped at 100 records is still navigable by typing part of an id.
+    Filtering happens in SQL rather than in the page, so the limit applies to
+    the matches rather than truncating before the filter runs.
+    """
+    clause = ""
+    params: list = [dag_id, run_id]
+    if contains:
+        clause = "AND contains(lower(record_key), lower(?))"
+        params.append(contains)
+
     con = connect(read_only=True)
     try:
         return _rows(
@@ -217,16 +296,17 @@ def list_records(dag_id: str, run_id: str, limit: int = 200) -> list[dict]:
                 SELECT record_key, task_id, max(row_ordinal) + 1 AS rows
                 FROM {SCHEMA}.captures
                 WHERE dag_id = ? AND run_id = ? AND direction = 'out'
+                  AND record_key IS NOT NULL
+                  {clause}
                 GROUP BY record_key, task_id
             )
             SELECT record_key, max(rows) AS max_rows, min(rows) AS min_rows
             FROM final
-            WHERE record_key IS NOT NULL
             GROUP BY record_key
             ORDER BY max_rows DESC, record_key
             LIMIT {int(limit)}
             """,
-            [dag_id, run_id],
+            params,
         )
     finally:
         con.close()

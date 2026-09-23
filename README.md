@@ -49,6 +49,11 @@ And when a record goes wrong, the same strip reads as a diagnosis. Row count
 `1 → 1 → 2 → 2` says a join fanned out, and says which task did it, before you
 have looked at a single value.
 
+A traced run captures the first 100 records by default, so the record list is
+filterable by key — and it names the actual key column, `order_id` here rather
+than a generic "record", so you know what you are typing into it. The column
+name is read from the captures themselves, not configured.
+
 ## Quickstart
 
 ```bash
@@ -318,6 +323,46 @@ settle: three customers still have overlapping promotion windows, and whether
 they should is a separate question for whoever owns that table. The logic was
 wrong; the data was arguably wrong too. Both readings are defensible, and the
 trace shows enough to have the argument with.
+
+## Four DAGs, because one proves nothing
+
+`orders_enrichment` is single-source on purpose: the grid has to be legible
+before it is interesting. But "does this work on a DAG that joins?" is the
+first question anyone asks, so three more DAGs cover the shapes a join
+pipeline actually takes. All four key on `order_id`, and all four are traced
+with the same one line per task.
+
+| DAG | Shape |
+| --- | --- |
+| `orders_enrichment` | one source table; the demo's seeded bug |
+| `orders_join_first` | the extract itself joins orders, customers and products |
+| `orders_join_every_step` | a join at every step, widening one table at a time |
+| `orders_join_after_single` | single-table extract, then one multi-table join |
+
+`orders_join_every_step` is the interesting one. Its last join attaches
+shipments, and four orders shipped in two parcels, so those records read:
+
+```
+with_customer   with_product   with_shipment   compute_total
+   1 -> 1          1 -> 1          1 -> 2         2 -> 2
+```
+
+That is the same signature as the promotions bug — and here it is **correct**.
+A split shipment is a real row. The tool does not decide which fan-out is a
+defect; it shows you the fan-out and which task caused it, which is the part
+you cannot get from reading the SQL. Telling the two apart is the judgement
+the grid exists to support.
+
+Run any of them without a scheduler:
+
+```bash
+python3 tools/local_run.py --replay --dag-id orders_join_every_step \
+  --scope "order_id = 83245"
+```
+
+```
+local  record 83245  1 -> 1 -> 2 -> 2  breaks=with_shipment  line_total=50.9
+```
 
 ## What this is not
 

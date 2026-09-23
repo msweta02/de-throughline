@@ -22,8 +22,9 @@ def index(base: str, default_bundle: str = "current") -> str:
     )
 
 
-def records(base: str, dag_id: str, run_id: str) -> str:
-    rows = store.list_records(dag_id, run_id)
+def records(base: str, dag_id: str, run_id: str, q: str | None = None) -> str:
+    q = (q or "").strip()
+    rows = store.list_records(dag_id, run_id, contains=q or None)
     return render.page(
         "records.html",
         base=base,
@@ -31,6 +32,9 @@ def records(base: str, dag_id: str, run_id: str) -> str:
         run_id=run_id,
         records=rows,
         fanned=[r for r in rows if (r["max_rows"] or 1) > 1],
+        key_field=store.key_field(dag_id, run_id),
+        q=q,
+        total=store.count_records(dag_id, run_id),
     )
 
 

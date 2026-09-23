@@ -63,8 +63,8 @@ def index_page() -> HTMLResponse:
 
 
 @app.get("/runs/{dag_id}/{run_id}", response_class=HTMLResponse, include_in_schema=False)
-def records_page(dag_id: str, run_id: str) -> HTMLResponse:
-    return _html(views.records(URL_PREFIX, dag_id, run_id))
+def records_page(dag_id: str, run_id: str, q: str | None = None) -> HTMLResponse:
+    return _html(views.records(URL_PREFIX, dag_id, run_id, q))
 
 
 @app.get(

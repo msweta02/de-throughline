@@ -33,7 +33,7 @@ described below. What has *not* been exercised is anything beyond local
 
 ## Verified by execution, inside Airflow 3.1
 
-Astro Runtime 3.1-1, local `astro dev start`, 22 Sept 2026.
+Astro Runtime 3.1-1, local `astro dev start`, 22–23 Sept 2026.
 
 | Claim | How it was shown |
 | --- | --- |
@@ -51,6 +51,10 @@ Astro Runtime 3.1-1, local `astro dev start`, 22 Sept 2026.
 | The diff view shows the incident | diff of a bundle-v1 replay against a bundle-v2 replay renders 65.0 against 80.0 |
 | A failed replay-plan import costs only the replay button | the plan import failed once at plugin load; the trace UI kept serving and `POST /replays` returned `refused` with a clear reason |
 | The endpoints are not authenticated | plain `curl`, no credentials, 200 — see *Known limitations* |
+| Tracing works on a DAG that joins | `orders_join_every_step` captured 100 records / 6,434 cells across 4 tasks, unchanged decorator |
+| A join fan-out surfaces the same as the seeded bug | order 83245 (two shipments) read `1 -> 1 -> 2 -> 2`, attributed to `with_shipment` |
+| The record list names its real key column | the header reads `order_id`, read from the captures rather than configured |
+| Filtering the record list works | `?q=83245` returned *1 of 100 records*; a non-matching filter says so rather than rendering an empty table |
 
 ## Found by running it in Airflow, and fixed
 
@@ -77,6 +81,12 @@ One was wrong.
 
 ## Environment requirements found the hard way
 
+- **`throughline/` is baked into the image, not bind-mounted.** `astro dev`
+  mounts `dags/`, `include/`, `plugins/` and `tests/`; a change to the plugin
+  package itself needs `astro dev restart` before the containers see it. This
+  is worth knowing because the failure is silent in the worst way: the
+  containers keep running the previous version of the capture code, so tasks
+  succeed and capture nothing. It cost an hour once already.
 - **The bind-mounted DuckDB files must be writable by uid 50000.** The Astro
   containers run as `astro` (uid 50000); a file created on the host by an
   ordinary user is mode 644 and uid 1000, so the first task dies with

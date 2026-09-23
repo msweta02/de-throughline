@@ -2,7 +2,23 @@
 {% block title %}Throughline — {{ run_id }}{% endblock %}
 {% block body %}
 <h1>{{ dag_id }}</h1>
-<div class="sub">run <span class="mono">{{ run_id }}</span> · {{ records | length }} records captured</div>
+<div class="sub">
+  run <span class="mono">{{ run_id }}</span> ·
+  {% if q %}{{ records | length }} of {{ total }} records{% else %}{{ total }} records captured{% endif %}
+  {% if key_field %} · keyed by <span class="mono">{{ key_field }}</span>{% endif %}
+</div>
+
+{% if key_field %}
+<form method="get" class="panel" style="margin-bottom:16px; display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap">
+  <div style="flex:1 1 260px">
+    <label for="q">filter by <span class="mono">{{ key_field }}</span></label>
+    <input id="q" name="q" class="mono" value="{{ q }}"
+           placeholder="part or all of a {{ key_field }}" autofocus>
+  </div>
+  <button type="submit">Filter</button>
+  {% if q %}<a class="sub" href="{{ base }}/runs/{{ dag_id }}/{{ run_id }}">clear</a>{% endif %}
+</form>
+{% endif %}
 
 {% if fanned %}
 <div class="panel" style="border-color: var(--warn); margin-bottom:16px">
@@ -13,13 +29,18 @@
 
 <div class="panel" style="padding:0">
 <table>
-  <tr><th>record</th><th>rows at the end</th></tr>
+  <tr><th>{{ key_field or 'record' }}</th><th>rows at the end</th></tr>
   {% for r in records %}
   <tr>
     <td><a class="mono" href="{{ base }}/runs/{{ dag_id }}/{{ run_id }}/{{ r.record_key }}">{{ r.record_key }}</a></td>
     <td>{% if r.max_rows > 1 %}<span class="pill warn">{{ r.max_rows }}</span>{% else %}{{ r.max_rows }}{% endif %}</td>
   </tr>
   {% endfor %}
+  {% if not records %}
+  <tr><td colspan="2" class="sub">
+    no record matches <span class="mono">{{ q }}</span> in this run
+  </td></tr>
+  {% endif %}
 </table>
 </div>
 <p class="sub" style="margin-top:18px"><a href="{{ base }}/">&larr; all traces</a></p>
