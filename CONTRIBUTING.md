@@ -1,8 +1,9 @@
 # Contributing
 
-This is a hackathon build, so the bar for a change is narrow: **does it make one
-of the beats in [docs/demo-script.md](docs/demo-script.md) work better?** If not,
-it is out of scope — see the non-goals in [CLAUDE.md](CLAUDE.md).
+This is a hackathon build, so the bar for a change is narrow: **does it make
+the demo in [TESTING.md](TESTING.md) work better?** If not, it is probably out
+of scope — see [ROADMAP.md](ROADMAP.md) for what is deliberately unbuilt and
+what is merely next.
 
 ## Getting set up
 

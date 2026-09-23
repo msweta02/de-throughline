@@ -15,3 +15,7 @@ include/scratch/
 .pytest_cache/
 # Personal working notes, not part of the project
 STATUS.md
+
+# Internal working notes, not part of the submission
+CLAUDE.md
+docs/demo-script.md

@@ -1,8 +1,16 @@
 # Where this could go
 
 Ordered by value per hour of work, not by ambition. Everything here is
-deliberately *not* built — see the non-goals in `CLAUDE.md` for the things
-that are not on this list on purpose.
+deliberately *not* built.
+
+## Not on this list, on purpose
+
+Generic SQL rewriting or AST manipulation. Warehouses other than DuckDB. A
+React UI. Auth on the endpoints. Anything OpenLineage — this is record-level
+and concrete, which is precisely what lineage tools do not give you.
+
+Those are scope decisions rather than a backlog. A record-level tool that also
+tried to be a lineage tool would be worse at both.
 
 ## Worth doing next
 

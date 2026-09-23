@@ -2,13 +2,48 @@
 
 **Follow one record through a DAG, and see what each task did to it.**
 
-An Airflow 3.1 plugin that traces a single record as it moves through a pipeline
-— values changed, fields added or dropped, rows multiplied.
+An Airflow 3.1 plugin. Pick one record — an order, a support ticket, anything
+with a key — and Throughline shows what every task did to it: which values
+changed, which fields appeared and vanished, and the moment one row quietly
+became two.
 
-Built for the Astronomer *Beyond the Dag* hackathon. Apache 2.0.
+```
+                extract        normalize      apply_promo    compute_total
+  rows           1              1 → 1          1 → 2          2 → 2
+  added                        +ordered_at    +promo_code    +line_total
+                               +unit_price    +discount_pct  +total_discount_pct
+  dropped                      −order_ts
+                               −sku
+                               −unit_price_cents
+```
 
-The repository directory is `de-throughline`; the plugin, its package, its
-`/throughline` URL prefix and its nav entry are all `throughline`.
+Reading four SQL files tells you what a pipeline is *supposed* to do. Watching
+one real record move through it tells you what it *does*.
+
+Adoption is one line per task, and nothing else about the DAG changes:
+
+```python
+@task
+@throughline.trace(key="order_id")
+def normalize(orders): ...
+```
+
+It lives inside Airflow — a **Throughline** tab on the DAG's own page, beside
+*Overview* and *Runs* — so you do not leave the DAG you were looking at.
+
+Built for the Astronomer *Beyond the Dag* hackathon, Plugin Powerhouse
+category. Apache 2.0.
+
+### Where to look
+
+| | |
+| --- | --- |
+| [Quickstart](#quickstart) | running in about a minute, no Airflow needed |
+| [What was hard](#what-was-hard) | the four things that actually cost time |
+| [TESTING.md](TESTING.md) | every scenario, its command and expected result |
+| [VERIFY.md](VERIFY.md) | claim by claim: what has been executed, what has not |
+| [docs/data-flow.md](docs/data-flow.md) | one DAG end to end, every table and snapshot |
+| [ROADMAP.md](ROADMAP.md) | what is unbuilt, and how dbt would fit |
 
 ---
 
@@ -27,7 +62,8 @@ Comprehension is the primary use. Debugging is the urgent one.
 ## What you actually look at
 
 Fields down the side, tasks across the top, the record's values in the cells,
-and a shape strip above showing what each task did to the record's *shape*:
+and the shape strip above — the one from the top of this page — showing what
+each task did to the record's *shape*:
 
 ```
                 extract        normalize      apply_promo    compute_total
@@ -511,6 +547,54 @@ should be one. Throughline is record-level and concrete on purpose.
 Also not: generic SQL rewriting, warehouses other than DuckDB, a React UI, auth
 on the endpoints, column-level lineage, or an LLM explaining the trace.
 
+## What was hard
+
+Not the grid. The grid was an afternoon. What cost time was everything that
+was *silently* wrong — and the pattern is that none of it was visible from
+outside a running Airflow.
+
+**Two defects that made the DAG go green and capture nothing.** Both surfaced
+within an hour of the first real scheduler run, and neither was reachable from
+the test suite.
+
+`dag_run.run_type` is a `DagRunType` enum inside a live task, and `str()` on
+it yields `"DagRunType.MANUAL"`, not `"manual"` — so the run-type check failed
+every comparison and refused every run. Import `DagRunType` outside a task and
+stringify it and you get `"manual"`, which is why no test could have caught it.
+
+`airflow.sdk.Variable` cannot be read at DAG-parse time at all; it raises
+`ImportError` on `SUPERVISOR_COMMS`. A bare `except` turned that into "the
+switch is off", so setting the Variable the README told you to set did
+nothing whatsoever. The metadata-DB accessor works at parse time; the Task SDK
+one does not.
+
+**The switch is not live, and that is a consequence of its own guarantee.**
+Throughline promises the global switch *removes the wrapper* rather than
+short-circuiting inside one — so the decision is made at import, and a
+long-lived scheduler holds the decorated module in `sys.modules`. Flipping the
+Variable on a running deployment changes what the next read returns and
+nothing else. Measured in both directions: off without a restart still
+captured 4,500 cells; after a restart, zero. The honest fix was documentation,
+not code.
+
+**A page that passed every server-side check and was broken in the browser.**
+The DAG tab's links did nothing when clicked. `curl` returned 200, the HTML
+was correct, the plugin API advertised the view. Airflow frames plugin pages
+with `sandbox="allow-scripts allow-same-origin allow-forms"` — no
+`allow-top-navigation` — so the `target="_top"` links were refused by the
+browser with no error anywhere. The lesson generalises: for a UI change, the
+only test that counts is a click.
+
+**DuckDB takes one writer per file.** Running four DAGs at once killed one of
+them outright on the warehouse lock. The capture store already retried lock
+conflicts; the task's own connection did not. Both share that retry now — and
+it retries lock conflicts *only*, because a permission error does not improve
+after twenty seconds of backoff.
+
+The thread through all of it: this project's own honesty document, `VERIFY.md`,
+was the most useful thing in the repository, because it forced the difference
+between *copied from something that works* and *ran it* to stay visible.
+
 ## Verification and limitations
 
 **This runs inside a real Airflow scheduler.** The whole demo path — plugin,
@@ -539,21 +623,20 @@ this project does not fix.
 
 ```
 throughline/  the plugin: decorator, capture store, grid, replay, views
-dags/         the demo DAG — a thin binding, no logic
+dags/         four demo DAGs — thin bindings, no logic
 include/      task bodies, seed SQL, replay plans, the DuckDB databases
-plugins/      the AirflowPlugin registration
+plugins/      the AirflowPlugin registration: nav entry and DAG tab
 tools/        seed, local run, isolation proof, demo regression check
 tests/        sanity checks on the switches, row_ordinal and refusal
-docs/         the demo script the video follows
+docs/         the end-to-end data-flow walkthrough
 .github/      CI: lint, tests, isolation proof, demo check
 ```
 
+The repository directory is `de-throughline`; the plugin, its package, its
+`/throughline` URL prefix and its nav entry are all `throughline`.
+
 Contributing notes and the invariants worth not breaking are in
-[CONTRIBUTING.md](CONTRIBUTING.md). [TESTING.md](TESTING.md) walks every
-scenario with its expected result; [ROADMAP.md](ROADMAP.md) covers what is not
-built and why, including what a dbt integration would take;
-[docs/data-flow.md](docs/data-flow.md) traces one DAG end to end — every table
-written, every snapshot taken, and what changes under replay.
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
