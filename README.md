@@ -169,6 +169,10 @@ The `throughline_enabled` Variable is set for you by `airflow_settings.yaml`.
   baked into the image; `dags/` and `include/` are bind-mounted and live. Skip
   the restart and the containers keep running the previous capture code —
   tasks go green and nothing is captured.
+- **If Docker restarts, run `astro dev restart` — not just `docker start`.**
+  On WSL a Docker Desktop restart can bring the containers back without
+  reattaching the bind mounts. Airflow looks healthy, the plugin serves 200s,
+  and the DAG list is silently empty.
 - **Changing `throughline_enabled` needs a restart too**, because the switch
   removes the decorator at import time rather than checking at run time.
 - **Click the UI rather than curling it.** The plugin renders inside a
