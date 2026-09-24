@@ -46,7 +46,8 @@ def main() -> int:
     )
     try:
         con = session.connect()
-        print("replay session: wh attached READ_ONLY, scratch attached read-write\n")
+        print("replay session: wh attached READ_ONLY, scratch attached read-write")
+        print("attempting six writes against production. every one should be refused.\n")
 
         before = con.execute("SELECT count(*) FROM wh.orders").fetchone()[0]
 
@@ -54,21 +55,30 @@ def main() -> int:
         for label, sql in ATTEMPTS:
             try:
                 con.execute(sql)
-                print(f"  NOT BLOCKED  {label}")
+                print(f"  *** NOT REFUSED *** {label}   <-- this would be a failure")
             except Exception as exc:
                 blocked += 1
+                # DuckDB's own words. That the database refused is the whole
+                # claim; a message this tool wrote itself would prove nothing.
                 reason = str(exc).splitlines()[0].strip()
-                print(f"  blocked      {label}\n               {reason}")
+                print(f"  refused   {label}\n            \u2514\u2500 {reason}")
 
         con.execute("CREATE OR REPLACE TABLE scratch.proof AS SELECT 1 AS x")
         scratch_ok = con.execute("SELECT count(*) FROM scratch.proof").fetchone()[0] == 1
         after = con.execute("SELECT count(*) FROM wh.orders").fetchone()[0]
         con.close()
 
-        print(f"\n  {blocked}/{len(ATTEMPTS)} production writes blocked")
-        print(f"  scratch writes still work: {scratch_ok}")
-        print(f"  wh.orders unchanged: {before} rows before, {after} rows after")
-        return 0 if blocked == len(ATTEMPTS) and scratch_ok and before == after else 1
+        ok = blocked == len(ATTEMPTS) and scratch_ok and before == after
+        verdict = (
+            "PASS: production is unwritable during a replay"
+            if ok
+            else "FAIL: something reached production, or the row count moved"
+        )
+        print(f"\n  {verdict}")
+        print(f"    {blocked}/{len(ATTEMPTS)} write attempts refused by the database")
+        print(f"    scratch writes still work: {scratch_ok}")
+        print(f"    wh.orders unchanged: {before} rows before, {after} rows after")
+        return 0 if ok else 1
     finally:
         runtime.clear_override(saved)
 
