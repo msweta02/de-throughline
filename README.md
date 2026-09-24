@@ -43,6 +43,8 @@ category. Apache 2.0.
 | [What it costs](#what-it-costs) | measured, not estimated |
 | [What was hard](#what-was-hard) | the four things that actually cost time |
 | [Verification and limitations](#verification-and-limitations) | what has been executed, and what has not |
+| [VERIFY.md](VERIFY.md) | the claim-by-claim record, and the known issues |
+| [TESTING.md](TESTING.md) | twelve scenarios with commands and expected results |
 
 ---
 
@@ -91,37 +93,82 @@ name is read from the captures themselves, not configured.
 
 ## Quickstart
 
+Two paths. **A** takes about a minute and needs no Airflow. **B** runs the
+plugin inside a real Airflow 3.1 scheduler.
+
+### Path A — the core system, no Airflow (~1 minute)
+
 ```bash
-pip install duckdb                       # or: astro dev start, which has it
-python3 tools/seed_warehouse.py          # build the demo warehouse
-python3 tools/local_run.py --run-id nightly --bundle-version bundle-v1
-python3 tools/prove_isolation.py         # show replay cannot write to prod
+pip install -r requirements-dev.txt
+python3 tools/seed_warehouse.py      # 5,000-order demo warehouse
+python3 tools/local_run.py --run-id nightly
+python3 tools/prove_isolation.py
 python3 -m pytest tests/ -q
+python3 -m ruff check .
 ```
 
-`tools/local_run.py` runs the real task bodies with tracing on, without a
-scheduler. It exists because a capture layer you can only exercise by standing
-up Airflow is a capture layer you will not exercise often enough.
+Expect: the warehouse built, **100 records captured**, **6/6 production writes
+blocked**, **14 tests passing**, ruff clean.
 
-Inside Airflow:
+`tools/local_run.py` runs the real task bodies with tracing on, without a
+scheduler — because a capture layer you can only exercise by standing up
+Airflow is a capture layer you will not exercise often enough. It prints the
+row-count sequence per record; the rendered grid needs Path B.
+
+**Reproduce the incident:**
 
 ```bash
+python3 tools/check_demo.py
+```
+
+It checks `include/orders_enrichment/steps.py` out of the `bundle-v1` tag,
+replays record 88231 against it, restores the current code and replays again:
+
+| | Row counts | Line total |
+| --- | --- | --- |
+| `bundle-v1` | `1 → 1 → 2 → 2` | **65.00** |
+| current | `1 → 1 → 1 → 1` | **80.00** |
+
+This needs the git tags, so it is skipped on a shallow clone.
+
+### Path B — inside Airflow (Astro CLI and Docker)
+
+```bash
+python3 tools/seed_warehouse.py
+chmod -R a+rwX include        # required: the containers run as uid 50000
 astro dev start
 ```
 
-then set the `throughline_enabled` Airflow Variable (`airflow_settings.yaml`
-already does) and trigger `orders_enrichment`.
+Then, in the Airflow UI:
 
-Two ways in, and the first is the one you will actually use:
+1. Open `orders_enrichment` and **toggle it on** — DAGs are paused when first
+   created, and a trigger on a paused DAG sits queued forever.
+2. **Trigger** it. The Trigger dialog has a *Trace this run with Throughline*
+   checkbox, ticked by default.
+3. Open the DAG's **Throughline** tab, last in the row after *Details*. It
+   lists that DAG's traced runs and nothing else.
+4. Click a run, then a record, for the field-by-task grid and the shape strip.
+5. For a **replay**, go to **Browse → Throughline** — the replay form lives on
+   the index, not the DAG tab. Enter `order_id = 88231` as the scope and
+   submit. It returns in seconds, with production attached `READ_ONLY` and
+   writes going to a throwaway scratch database.
 
-- **The DAG's own page.** Open the DAG and click the **Throughline** tab, last
-  in the row after *Details*. It lists that DAG's traced runs and nothing
-  else, because you arrived from a DAG and every other DAG's runs are noise.
-- **Browse → Throughline** for the index across every DAG.
+The `throughline_enabled` Variable is set for you by `airflow_settings.yaml`.
 
-Airflow renders the tab in a sandboxed iframe, so links inside it navigate
-within the frame and the DAG header and tabs stay visible while you drill from
-run to record to grid.
+### Notes that will save you time
+
+- **`chmod -R a+rwX include` before `astro dev start`.** The containers run as
+  uid 50000; files you created are uid 1000, and the first task dies with
+  `Permission denied` without it.
+- **Changes under `throughline/` need `astro dev restart`.** That directory is
+  baked into the image; `dags/` and `include/` are bind-mounted and live. Skip
+  the restart and the containers keep running the previous capture code —
+  tasks go green and nothing is captured.
+- **Changing `throughline_enabled` needs a restart too**, because the switch
+  removes the decorator at import time rather than checking at run time.
+- **Click the UI rather than curling it.** The plugin renders inside a
+  sandboxed iframe, and a link the browser refuses to follow returns a
+  perfectly healthy 200.
 
 ## Adoption: this has to work on DAGs you did not write
 
