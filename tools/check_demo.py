@@ -106,6 +106,7 @@ def main() -> int:
 
     # Only meaningful where git is available and the tags came with the clone.
     # A shallow clone has no tags, and not every machine has git on PATH.
+    skipped = ""
     if git("rev-parse", "--verify", "bundle-v1").returncode == 0:
         print("\nbundle-v1: the bug still reproduces")
         git("checkout", "bundle-v1", "--", STEPS)
@@ -123,11 +124,13 @@ def main() -> int:
         finally:
             git("checkout", "HEAD", "--", STEPS)
     elif git("--version").returncode != 0:
+        skipped = "git is not on PATH"
         print(
             "\ngit is not on PATH, so the bundle-v1 replay is skipped."
             "\nEverything above still ran; only the old-code comparison needs git."
         )
     else:
+        skipped = "the bundle-v1 tag is not in this clone"
         print("\nbundle-v1 tag not present, skipping the bug-reproduces check")
 
     if failures:
@@ -135,7 +138,13 @@ def main() -> int:
         for failure in failures:
             print(f"  - {failure}")
         return 1
-    print("\nthe demo still demonstrates what it claims")
+    if skipped:
+        print(
+            f"\nthe checks that ran all passed, but {skipped}, so the bug-reproduces"
+            "\nhalf was not verified. This is a partial pass."
+        )
+    else:
+        print("\nthe demo still demonstrates what it claims")
     return 0
 
 
