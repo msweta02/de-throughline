@@ -50,7 +50,20 @@ def replay_record(bundle_version: str) -> tuple[list[int], dict]:
 
 
 def git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
+    """Run a git command, treating a missing git as a failed one.
+
+    Not every machine that can run this script has git on PATH — a Windows
+    checkout made through a GUI client is the usual case. The bundle-v1
+    section is already optional because a shallow clone has no tags, so an
+    absent git takes the same route rather than raising FileNotFoundError out
+    of the middle of a passing run.
+    """
+    try:
+        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
+    except (FileNotFoundError, OSError):
+        return subprocess.CompletedProcess(
+            args=["git", *args], returncode=127, stdout="", stderr="git not found on PATH"
+        )
 
 
 def main() -> int:
@@ -91,7 +104,8 @@ def main() -> int:
     check("total discount", final.get("total_discount_pct"), "20")
     check("line total", final.get("line_total"), "80.0")
 
-    # Only meaningful in a checkout that has the tags; a shallow clone will not.
+    # Only meaningful where git is available and the tags came with the clone.
+    # A shallow clone has no tags, and not every machine has git on PATH.
     if git("rev-parse", "--verify", "bundle-v1").returncode == 0:
         print("\nbundle-v1: the bug still reproduces")
         git("checkout", "bundle-v1", "--", STEPS)
@@ -108,6 +122,11 @@ def main() -> int:
             check("line total", final.get("line_total"), "65.0")
         finally:
             git("checkout", "HEAD", "--", STEPS)
+    elif git("--version").returncode != 0:
+        print(
+            "\ngit is not on PATH, so the bundle-v1 replay is skipped."
+            "\nEverything above still ran; only the old-code comparison needs git."
+        )
     else:
         print("\nbundle-v1 tag not present, skipping the bug-reproduces check")
 
