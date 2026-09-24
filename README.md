@@ -96,6 +96,11 @@ name is read from the captures themselves, not configured.
 Two paths. **A** takes about a minute and needs no Airflow. **B** runs the
 plugin inside a real Airflow 3.1 scheduler.
 
+> **Windows:** use `python` wherever these commands say `python3` — Windows
+> ships `python`, and `python3` is usually absent or a Store stub. Skip the
+> `chmod` line; it is a macOS/Linux/WSL step. Path A is confirmed working on
+> Windows; Path B there is untested.
+
 ### Path A — the core system, no Airflow (~1 minute)
 
 ```bash

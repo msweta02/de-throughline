@@ -5,6 +5,11 @@ result to expect, and the one sentence worth saying out loud about it — becaus
 a demo that shows a feature without saying why it matters is a tour, not an
 argument.
 
+> **Windows:** use `python` wherever these commands say `python3` — Windows
+> ships `python`, and `python3` is usually absent or a Store stub. Skip the
+> `chmod` line; it is a macOS/Linux/WSL step. Path A is confirmed working on
+> Windows; Path B there is untested.
+
 Prerequisites, once:
 
 ```bash
