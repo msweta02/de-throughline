@@ -23,3 +23,6 @@ ROADMAP.md
 CONTRIBUTING.md
 NOTICE
 docs/data-flow.md
+
+# Windows alternate-data-stream artifacts from files copied through WSL
+*:Zone.Identifier

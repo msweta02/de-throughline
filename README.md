@@ -465,6 +465,11 @@ cost of not refusing is a corrupted production table.
 Three processes, three files, and one rule: **Throughline reads the pipeline's
 data and writes only its own.**
 
+![Architecture diagram: an Airflow worker running a traced task writes to the warehouse and to throughline.duckdb; the Airflow API server only reads throughline.duckdb; during a replay the warehouse is attached read-only and writes are redirected to a throwaway scratch database.](docs/architecture-diagram.svg)
+
+<details>
+<summary>Text version</summary>
+
 ```
    AIRFLOW WORKER                        AIRFLOW API SERVER
    ┌───────────────────────────┐         ┌───────────────────────────┐
@@ -490,6 +495,8 @@ data and writes only its own.**
           │ READ_ONLY and the task's writes land in a throwaway
           │ include/scratch/<replay_id>.duckdb instead.
 ```
+
+</details>
 
 Both boxes are ordinary Airflow processes — there is no Throughline daemon.
 The worker writes captures as a side effect of running your task; the API
