@@ -344,7 +344,7 @@ not the whole table. A scoped replay lifts the cap, because it is one record by
 construction.
 
 The cap is a default, not a limit. Raising it is a reasonable triage move: a
-full traced run over all 5,000 demo orders takes about eight seconds and finds
+full traced run over all 5,000 demo orders takes about ten seconds and finds
 the three broken ones on its own.
 
 ```
@@ -367,9 +367,13 @@ Measured on the demo pipeline, four tasks over 5,000 DuckDB orders:
 
 | | Wall clock | Captured |
 | --- | --- | --- |
-| Tracing off | 0.36 s | — |
-| Traced, default 100-record cap | 1.38 s | 4,500 cells |
-| Traced, every record | 16.0 s | 225,000 cells |
+| Tracing off | 0.31–0.35 s | — |
+| Traced, default 100-record cap | 0.99–1.24 s | 4,500 cells |
+| Traced, every record | 10.6–11.6 s | 225,000 cells |
+
+Ranges rather than single numbers because repeated runs on the same machine
+varied by half again — quoting one figure is how the docs drifted to three
+different values for the same operation in the first place.
 
 So roughly **+1 second per 4,500 cells**, and about **14 bytes per cell** on
 disk — a traced run of the demo DAG adds ~60 KB to the capture store.

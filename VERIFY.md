@@ -27,7 +27,7 @@ described below. What has *not* been exercised is anything beyond local
 | Tracing does not change what a task returns | `tests/test_throughline.py` |
 | Replay refuses tasks that are not marked safe, by name | `tests/test_throughline.py` |
 | The demo's own numbers are guarded | `tools/check_demo.py`, run by CI — seed condition, the fix holding on current code, and the bug reproducing against the `bundle-v1` tag |
-| A full traced run finds all 3 broken records unaided | `tools/local_run.py --sample all` over 5,000 orders, ~13s on the development machine |
+| A full traced run finds all 3 broken records unaided | `tools/local_run.py --sample all` over 5,000 orders, 10.6–11.6s across repeated runs on the development machine |
 | Captured values are escaped safely on the bulk-insert path | `tests/test_throughline.py` — a value containing `'); DROP TABLE ...` round-trips intact and the store survives |
 | CLI and plugin replays take the same path | `tools/local_run.py --replay` calls `throughline.replay.run`, so both hit the same preflight and both appear in the replays table |
 

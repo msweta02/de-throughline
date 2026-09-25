@@ -133,6 +133,8 @@ async def post_replay(request: Request) -> Any:
 
     if not dag_id or not scope:
         message = "dag_id and scope are both required"
+        if wants_html:
+            return RedirectResponse(URL_PREFIX + "/", status_code=303)
         return JSONResponse({"error": message}, status_code=400)
 
     try:
@@ -143,11 +145,18 @@ async def post_replay(request: Request) -> Any:
             return RedirectResponse(URL_PREFIX + "/", status_code=303)
         return JSONResponse({"status": "refused", "error": str(exc)}, status_code=409)
 
-    if wants_html and result.ok and result.record_key:
-        return RedirectResponse(
-            f"{URL_PREFIX}/runs/{dag_id}/{result.replay_id}/{result.record_key}",
-            status_code=303,
-        )
+    if wants_html:
+        # A browser must never be shown raw JSON. Deep-link to the record when
+        # there is one; otherwise send them back to the index, where the
+        # replays table carries the outcome and its note. That covers a failed
+        # replay and the easily-missed case of a scope that matched nothing:
+        # the replay succeeded, captured no record, and has nothing to link to.
+        if result.ok and result.record_key:
+            return RedirectResponse(
+                f"{URL_PREFIX}/runs/{dag_id}/{result.replay_id}/{result.record_key}",
+                status_code=303,
+            )
+        return RedirectResponse(URL_PREFIX + "/", status_code=303)
 
     return JSONResponse(
         {
