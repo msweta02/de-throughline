@@ -2,7 +2,7 @@
 """Assert that the demo still demonstrates what the README says it does.
 
 This is the "saved replays become regression tests" idea, run against the repo
-itself. Every number checked here is quoted somewhere in README.md or
+itself. Every number checked here is quoted somewhere in docs/DEMO.md or
 docs/demo-script.md, so if one of them drifts, the documentation has become
 wrong and CI says so rather than a judge finding out on camera.
 
