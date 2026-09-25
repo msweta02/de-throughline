@@ -7,14 +7,7 @@ with a key — and Throughline shows what every task did to it: which values
 changed, which fields appeared and vanished, and the moment one row quietly
 became two.
 
-```
-                extract        normalize      apply_promo    compute_total
-  rows           1              1 → 1          1 → 2          2 → 2
-  added                        +ordered_at    +promo_code    +line_total
-                               +unit_price    +discount_pct  +total_discount_pct
-  dropped                      −order_ts
-                               −sku
-```
+![Shape strip: extract pulls one row, normalize renames two fields and drops one, apply_promo's join fans one row into two, and compute_total derives the line total across both. A caption reads: rows 1 to 2 at apply_promo, a join fanned out — now you know which task, and where to look.](docs/shape-strip.svg)
 
 Reading four SQL files tells you what a pipeline is *supposed* to do.
 Watching one real record move through it tells you what it *does*.
