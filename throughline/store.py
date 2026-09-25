@@ -214,10 +214,11 @@ def _rows(con: Any, sql: str, params: list | None = None) -> list[dict]:
 def list_traces(limit: int = 50, dag_id: str | None = None) -> list[dict]:
     """One entry per captured DAG run, newest first.
 
-    ``dag_id`` narrows to a single DAG, which is what the per-DAG tab inside
-    Airflow shows: from that page, every other DAG's runs are noise.
+    ``dag_id`` narrows by case-insensitive substring, so the per-DAG tab
+    inside Airflow can pass an exact id while the index can offer a search
+    box where typing "tickets" finds all three support-desk pipelines.
     """
-    clause = "WHERE dag_id = ?" if dag_id else ""
+    clause = "WHERE contains(lower(dag_id), lower(?))" if dag_id else ""
     params = [dag_id] if dag_id else []
     con = connect(read_only=True)
     try:
@@ -405,11 +406,16 @@ def save_replay(entry: dict) -> None:
         con.close()
 
 
-def list_replays(limit: int = 50) -> list[dict]:
+def list_replays(limit: int = 50, dag_id: str | None = None) -> list[dict]:
+    """Replay attempts, newest first, optionally narrowed by dag_id substring."""
+    clause = "WHERE contains(lower(dag_id), lower(?))" if dag_id else ""
+    params = [dag_id] if dag_id else []
     con = connect(read_only=True)
     try:
         return _rows(
-            con, f"SELECT * FROM {SCHEMA}.replays ORDER BY created_at DESC LIMIT {int(limit)}"
+            con,
+            f"SELECT * FROM {SCHEMA}.replays {clause} ORDER BY created_at DESC LIMIT {int(limit)}",
+            params,
         )
     finally:
         con.close()

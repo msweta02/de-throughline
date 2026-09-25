@@ -696,11 +696,18 @@ Astro Runtime 3.1-1, local `astro dev start`:
 - **The endpoints are not authenticated.** Airflow 3.1 does not authenticate
   `fastapi_apps` routes and this does not add it. Anyone who can reach the
   API server can read captured values and trigger a replay.
-- **The bundle-version picker is a label, not a checkout.** The UI accepts a
-  bundle version and shows it, but replay executes whatever the registry
-  currently holds — so picking an old bundle returns today's answer under an
-  old label. The CLI path in `tools/check_demo.py` does check the tag out;
-  the UI does not.
+- **The UI cannot replay an older bundle.** A replay started from the plugin
+  runs whatever code is deployed now, and is labelled `current`. The form
+  used to accept a bundle version and ignore it, which was worse than not
+  offering the choice, so the field is gone. To compare versions, check the
+  tag out and use `tools/local_run.py --replay --bundle-version`, which
+  labels the capture to match the code that actually ran — that is how the
+  bundle-v1 and bundle-v2 captures behind the diff view are produced.
+
+  Making the UI do it properly is not a small change: `replay.run` executes
+  inside the API server, so a checkout there would mutate a bind-mounted file
+  the dag-processor is actively parsing, and a crash mid-replay would leave
+  the deployment running old code.
 - **A broad scope replays everything.** `scope` is a raw SQL predicate with
   no width guard, so `1=1` re-executes every record.
 - **DuckDB only**, and one file with one writer. Wide parallel fan-out inside

@@ -12,12 +12,26 @@ from typing import Any
 from throughline import grid, render, store
 
 
-def index(base: str, default_bundle: str = "current") -> str:
+def index(
+    base: str,
+    default_bundle: str = "current",
+    trace_dag: str | None = None,
+    replay_dag: str | None = None,
+) -> str:
+    """The cross-DAG index.
+
+    Each table filters independently, on a case-insensitive substring of the
+    dag_id — typing "tickets" narrows to the three support-desk pipelines.
+    """
+    trace_dag = (trace_dag or "").strip() or None
+    replay_dag = (replay_dag or "").strip() or None
     return render.page(
         "index.html",
         base=base,
-        traces=store.list_traces(),
-        replays=store.list_replays(limit=20),
+        traces=store.list_traces(dag_id=trace_dag),
+        replays=store.list_replays(limit=50, dag_id=replay_dag),
+        trace_dag=trace_dag or "",
+        replay_dag=replay_dag or "",
         default_bundle=default_bundle,
     )
 

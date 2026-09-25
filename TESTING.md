@@ -194,9 +194,10 @@ Stated here so nobody has to discover it by testing for it:
 
 - **Nothing beyond local `astro dev` has been exercised** — no remote
   executor, no real deployment.
-- **The bundle-version picker in the UI does not replay old code.** It stores
-  and displays the label; the replay runs whatever the registry currently
-  holds. Only `tools/check_demo.py` checks the tag out. See `VERIFY.md`.
+- **A replay started from the UI runs the currently deployed code**, labelled
+  `current`. There is no bundle picker; comparing versions is a CLI operation
+  (`tools/local_run.py --replay --bundle-version`, after checking the tag
+  out). See `VERIFY.md`.
 - **The `task_policy` zero-edit path is documented, not built.**
 - **The plugin endpoints are not authenticated**, which is an Airflow 3.1
   default this project does not fix.

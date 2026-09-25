@@ -8,14 +8,67 @@
   button { padding: 8px 15px; border-radius: 6px; border: 1px solid var(--accent);
            background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
   .empty { color: var(--muted); padding: 14px; }
+  /* Roughly ten rows plus a header, then scroll. These tables grow without limit
+     on a busy deployment, and a page that is mostly history buries the form
+     that actually does something. */
+  .tablehead { display: flex; align-items: baseline; gap: 10px;
+               flex-wrap: wrap; margin: 26px 0 8px; }
+  .tablehead h2 { margin: 0; }
+  .filter { display: flex; gap: 6px; align-items: center; }
+  .filter select { min-width: 0; padding: 4px 8px; font-size: 12px; }
+  .filter button { padding: 4px 10px; font-size: 12px; }
+  .filter a { font-size: 12px; color: var(--muted); }
+  .scrollbox { max-height: 24rem; overflow-y: auto; }
+  .scrollbox table { border-collapse: separate; border-spacing: 0; }
+  .scrollbox thead th, .scrollbox tr:first-child th {
+    position: sticky; top: 0; z-index: 1; background: var(--panel);
+  }
 {% endblock %}
 {% block body %}
 <h1>Throughline</h1>
 <div class="sub">Follow one record through a DAG.</div>
 
-<h2>Traces</h2>
+<h2>Replay a record</h2>
+<div class="panel">
+  <form method="post" action="{{ base }}/replays">
+    <div>
+      <label for="dag_id">dag</label>
+      <input id="dag_id" name="dag_id" value="orders_enrichment" required>
+    </div>
+    <div>
+      <label for="scope">scope predicate</label>
+      <input id="scope" name="scope" class="mono" placeholder="order_id = 88231" required>
+    </div>
+    <button type="submit">Replay</button>
+  </form>
+  <p class="sub" style="margin:12px 0 0">
+    Replay re-executes the real task code against production attached read-only,
+    writing to a scratch database. Tasks not marked
+    <span class="mono">replay_safe</span> refuse to run.
+  </p>
+  <p class="sub" style="margin:6px 0 0">
+    Replays run whatever code is deployed now, and are labelled
+    <span class="mono">{{ default_bundle }}</span>. To replay an older bundle,
+    check that version out and use
+    <span class="mono">tools/local_run.py --replay --bundle-version</span>,
+    which labels the capture to match the code it actually ran.
+  </p>
+</div>
+
+{% if replays %}
+<div class="tablehead">
+  <h2>Traces</h2>
+  <form class="filter" method="get" action="{{ base }}/">
+    {% if replay_dag %}<input type="hidden" name="replay_dag" value="{{ replay_dag }}">{% endif %}
+    <input type="search" name="trace_dag" value="{{ trace_dag }}"
+           placeholder="filter by dag name" class="mono" size="18">
+    <button type="submit">filter</button>
+    {% if trace_dag %}<a href="{{ base }}/?replay_dag={{ replay_dag }}">clear</a>{% endif %}
+  </form>
+</div>
 <div class="panel" style="padding:0">
 {% if traces %}
+<div class="scrollbox">
 <table>
   <tr><th>dag</th><th>run</th><th>bundle</th><th>tasks</th><th>records</th><th>captured</th></tr>
   {% for t in traces %}
@@ -29,6 +82,7 @@
   </tr>
   {% endfor %}
 </table>
+</div>
 {% else %}
 <div class="empty">
   Nothing captured yet. Tracing is off unless asked for: set the
@@ -38,33 +92,18 @@
 {% endif %}
 </div>
 
-<h2>Replay a record</h2>
-<div class="panel">
-  <form method="post" action="{{ base }}/replays">
-    <div>
-      <label for="dag_id">dag</label>
-      <input id="dag_id" name="dag_id" value="orders_enrichment" required>
-    </div>
-    <div>
-      <label for="scope">scope predicate</label>
-      <input id="scope" name="scope" class="mono" placeholder="order_id = 88231" required>
-    </div>
-    <div>
-      <label for="bundle_version">bundle version</label>
-      <input id="bundle_version" name="bundle_version" value="{{ default_bundle }}">
-    </div>
-    <button type="submit">Replay</button>
+<div class="tablehead">
+  <h2>Replays</h2>
+  <form class="filter" method="get" action="{{ base }}/">
+    {% if trace_dag %}<input type="hidden" name="trace_dag" value="{{ trace_dag }}">{% endif %}
+    <input type="search" name="replay_dag" value="{{ replay_dag }}"
+           placeholder="filter by dag name" class="mono" size="18">
+    <button type="submit">filter</button>
+    {% if replay_dag %}<a href="{{ base }}/?trace_dag={{ trace_dag }}">clear</a>{% endif %}
   </form>
-  <p class="sub" style="margin:12px 0 0">
-    Replay re-executes the real task code against production attached read-only,
-    writing to a scratch database. Tasks not marked
-    <span class="mono">replay_safe</span> refuse to run.
-  </p>
 </div>
-
-{% if replays %}
-<h2>Replays</h2>
 <div class="panel" style="padding:0">
+<div class="scrollbox">
 <table>
   <tr><th>record</th><th>dag</th><th>bundle</th><th>scope</th><th>status</th><th>when</th></tr>
   {% for r in replays %}
@@ -78,6 +117,7 @@
   </tr>
   {% endfor %}
 </table>
+</div>
 </div>
 {% endif %}
 {% endblock %}

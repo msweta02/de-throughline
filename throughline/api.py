@@ -58,8 +58,8 @@ async def _payload(request: Request) -> dict[str, Any]:
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-def index_page() -> HTMLResponse:
-    return _html(views.index(URL_PREFIX))
+def index_page(trace_dag: str | None = None, replay_dag: str | None = None) -> HTMLResponse:
+    return _html(views.index(URL_PREFIX, trace_dag=trace_dag, replay_dag=replay_dag))
 
 
 @app.get("/dags/{dag_id}", response_class=HTMLResponse, include_in_schema=False)
