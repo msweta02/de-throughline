@@ -51,7 +51,7 @@ jobs:
         run: python tools/prove_isolation.py
 
       - name: The demo still demonstrates what it claims
-        # Every number this asserts is quoted in README.md or the demo script.
+        # Every number this asserts is quoted in docs/DEMO.md or the demo script.
         run: python tools/check_demo.py
 
       - name: A traced run captures, and an untraced one does not
