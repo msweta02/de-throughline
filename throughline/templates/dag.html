@@ -18,14 +18,14 @@
 <div class="panel" style="padding:0">
 {% if traces %}
 <table>
-  <tr><th>run</th><th>bundle</th><th>tasks</th><th>records</th><th>captured</th></tr>
+  <tr><th>run</th><th>bundle</th><th>tasks</th><th>records</th><th>captured (UTC)</th></tr>
   {% for t in traces %}
   <tr>
     <td><a class="mono" href="{{ base }}/runs/{{ t.dag_id }}/{{ t.run_id }}">{{ t.run_id }}</a></td>
     <td><span class="pill">{{ t.bundle_version }}</span></td>
     <td>{{ t.tasks }}</td>
     <td>{{ t.records }}</td>
-    <td class="mono">{{ t.started_at }}</td>
+    <td class="mono">{{ t.started_at.strftime("%Y-%m-%d %H:%M:%S") if t.started_at else "" }}</td>
   </tr>
   {% endfor %}
 </table>

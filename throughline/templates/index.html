@@ -70,7 +70,7 @@
 {% if traces %}
 <div class="scrollbox">
 <table>
-  <tr><th>dag</th><th>run</th><th>bundle</th><th>tasks</th><th>records</th><th>captured</th></tr>
+  <tr><th>dag</th><th>run</th><th>bundle</th><th>tasks</th><th>records</th><th>captured (UTC)</th></tr>
   {% for t in traces %}
   <tr>
     <td class="mono">{{ t.dag_id }}</td>
@@ -78,7 +78,7 @@
     <td><span class="pill">{{ t.bundle_version }}</span></td>
     <td>{{ t.tasks }}</td>
     <td>{{ t.records }}</td>
-    <td class="mono">{{ t.started_at }}</td>
+    <td class="mono">{{ t.started_at.strftime("%Y-%m-%d %H:%M:%S") if t.started_at else "" }}</td>
   </tr>
   {% endfor %}
 </table>
@@ -105,7 +105,7 @@
 <div class="panel" style="padding:0">
 <div class="scrollbox">
 <table>
-  <tr><th>record</th><th>dag</th><th>bundle</th><th>scope</th><th>status</th><th>when</th></tr>
+  <tr><th>record</th><th>dag</th><th>bundle</th><th>scope</th><th>status</th><th>when (UTC)</th></tr>
   {% for r in replays %}
   <tr>
     <td><a class="mono" href="{{ base }}/runs/{{ r.dag_id }}/{{ r.replay_id }}/{{ r.record_key }}">{{ r.record_key }}</a></td>
@@ -113,7 +113,7 @@
     <td><span class="pill">{{ r.bundle_version }}</span></td>
     <td class="mono">{{ r.scope }}</td>
     <td>{% if r.status == 'refused' %}<span class="pill warn">refused</span>{% else %}{{ r.status }}{% endif %}</td>
-    <td class="mono">{{ r.created_at }}</td>
+    <td class="mono">{{ r.created_at.strftime("%Y-%m-%d %H:%M:%S") if r.created_at else "" }}</td>
   </tr>
   {% endfor %}
 </table>
